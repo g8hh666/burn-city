@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>焚城</title>
+<style>
+:root{
+  --cold:#6fc9e8; --warm:#ffb456; --hot:#ff5722; --ember:#ffde7a;
+  --ink:#f2e6d2; --soft:#a99a86; --line:rgba(255,255,255,.12);
+  --serif:"Songti SC","Noto Serif SC","Source Han Serif SC","STSong",serif;
+  --num:"Bahnschrift","DIN Alternate","Arial Narrow",system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#04070c}
+body{
+  font-family:var(--serif);color:var(--ink);
+  -webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;
+}
+#c{position:fixed;inset:0;display:block}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.panel{
+  position:absolute;background:rgba(6,9,14,.58);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid var(--line);border-radius:10px;padding:9px 13px;
+}
+#panelTemp{top:14px;left:14px;min-width:158px}
+#panelStage{top:14px;right:14px;max-width:min(46vw,320px);text-align:right}
+#panelRes{bottom:14px;left:14px;min-width:196px}
+
+.label{font-size:10px;letter-spacing:.28em;color:var(--soft);margin-bottom:3px}
+.temp{display:flex;align-items:baseline;gap:4px;line-height:1}
+.temp b{font-family:var(--num);font-size:38px;font-weight:600;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;transition:color .35s}
+.temp i{font-style:normal;font-size:15px;color:var(--soft)}
+.sub{font-size:11px;color:var(--soft);margin-top:5px;letter-spacing:.06em}
+
+.track{height:6px;border-radius:3px;background:rgba(255,255,255,.10);
+  overflow:hidden;margin-top:8px;position:relative}
+.track i{display:block;height:100%;width:0%;border-radius:3px;transition:width .18s linear}
+
+#stageName{font-size:15px;letter-spacing:.12em;color:var(--warm)}
+#stageGoal{font-size:11.5px;color:var(--soft);margin-top:4px;line-height:1.5}
+#stageBar{margin-top:8px;margin-left:auto;width:150px}
+
+.row{display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;color:var(--soft);letter-spacing:.06em;margin-top:7px}
+.row:first-of-type{margin-top:0}
+.row b{font-family:var(--num);font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
+.mini{width:112px;height:5px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden}
+.mini i{display:block;height:100%;width:100%;border-radius:3px;transition:width .18s linear}
+.row.lv{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-size:10.5px}
+.row.lv span{font-family:var(--num);letter-spacing:.08em;color:var(--warm)}
+
+/* ---------- 提示 / Toast ---------- */
+#hint{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);
+  z-index:6;pointer-events:none;font-size:13.5px;letter-spacing:.1em;
+  padding:7px 16px;border-radius:20px;color:var(--ink);
+  background:rgba(6,9,14,.66);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  opacity:0;transition:opacity .22s}
+#hint.on{opacity:1}
+#hint kbd{font-family:var(--num);font-size:12px;padding:1px 6px;margin-right:5px;
+  border-radius:4px;background:rgba(255,255,255,.14);border:1px solid var(--line)}
+
+#toast{position:fixed;left:50%;top:19%;transform:translate(-50%,-8px);z-index:7;
+  pointer-events:none;font-size:17px;letter-spacing:.16em;text-align:center;
+  padding:11px 26px;border-radius:8px;color:#fff2d8;
+  background:rgba(24,10,4,.72);border:1px solid rgba(255,150,60,.34);
+  box-shadow:0 0 40px rgba(255,110,30,.22);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  opacity:0;transition:opacity .3s,transform .3s}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- 遮罩 ---------- */
+#overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(900px 620px at 50% 42%,rgba(30,10,2,.80),rgba(3,5,9,.96));
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  transition:opacity .5s;padding:24px;overflow-y:auto}
+#overlay.hide{opacity:0;pointer-events:none}
+.card{max-width:580px;width:100%;text-align:center;animation:rise .7s cubic-bezier(.2,.8,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.title{font-size:clamp(40px,9vw,68px);letter-spacing:.34em;text-indent:.34em;
+  background:linear-gradient(100deg,#ffd479,#ff7a2f 52%,#d32b12);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 26px rgba(255,110,30,.34))}
+.subtitle{margin-top:12px;font-size:13.5px;letter-spacing:.24em;color:var(--soft)}
+.rule{margin:24px auto 0;max-width:470px;text-align:left;font-size:13px;
+  line-height:1.95;color:#cfc0aa;letter-spacing:.05em}
+.rule em{font-style:normal;color:var(--warm)}
+.rule s{text-decoration:none;color:var(--hot)}
+.dot{display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--hot);margin-right:9px;vertical-align:middle}
+button{margin-top:28px;font-family:var(--serif);font-size:15px;letter-spacing:.24em;
+  color:#160b04;cursor:pointer;padding:12px 40px;border:0;border-radius:6px;
+  background:linear-gradient(180deg,#ffcb70,#ff8a30);
+  box-shadow:0 10px 30px rgba(255,120,40,.24);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(255,120,40,.36)}
+button:active{transform:translateY(0)}
+.final{font-family:var(--num);font-size:clamp(58px,15vw,104px);line-height:1;
+  letter-spacing:-.03em;color:#ff8a3c;text-shadow:0 0 44px rgba(255,90,20,.5)}
+.final i{font-style:normal;font-size:.36em;color:#ffab5e}
+
+/* ---------- 木匠铺（室外） ---------- */
+#shop{position:fixed;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;
+  background:rgba(4,6,10,.72);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  transition:opacity .25s;padding:20px}
+#shop.hide{opacity:0;pointer-events:none}
+.shopbox{width:min(580px,94vw);border:1px solid rgba(255,180,90,.28);border-radius:12px;
+  background:linear-gradient(180deg,rgba(30,19,11,.97),rgba(15,10,6,.99));
+  box-shadow:0 30px 90px rgba(0,0,0,.62);padding:18px 20px 16px}
+.shoptop{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;
+  border-bottom:1px dashed rgba(255,180,90,.24);padding-bottom:10px;margin-bottom:4px}
+.shoptitle{font-size:17px;letter-spacing:.30em;color:var(--warm)}
+.shopwallet{font-size:12px;color:var(--soft);letter-spacing:.08em}
+.shopwallet b{font-family:var(--num);font-size:16px;color:var(--ink);margin:0 2px}
+.srow{display:flex;align-items:center;gap:10px;padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.sinfo{flex:1;min-width:0}
+.sname{font-size:14px;letter-spacing:.12em;color:var(--ink)}
+.slv{font-family:var(--num);font-size:12px;color:var(--warm);margin-left:4px}
+.sdesc{font-size:11.5px;color:var(--soft);margin-top:3px;letter-spacing:.04em}
+.sbtn{margin:0;font-family:var(--num);font-size:13px;letter-spacing:.06em;padding:8px 14px;
+  border-radius:6px;border:0;cursor:pointer;color:#180c04;white-space:nowrap;
+  background:linear-gradient(180deg,#ffcb70,#ff8a30);box-shadow:none}
+.sbtn:hover{transform:none}
+.sbtn.poor{background:linear-gradient(180deg,#6d5c48,#4a3d30);color:#c0ae99}
+.sbtn:disabled{background:linear-gradient(180deg,#3a332b,#2a251f);color:#6b6157;cursor:default}
+.smax{font-size:12px;color:var(--soft);letter-spacing:.2em;padding-right:6px}
+#btnShopClose{display:block;width:100%;margin-top:14px;font-size:14px;letter-spacing:.24em;
+  padding:11px;border-radius:6px;background:rgba(255,255,255,.07);color:var(--ink);
+  border:1px solid var(--line);box-shadow:none}
+#btnShopClose:hover{background:rgba(255,255,255,.12);transform:none}
+
+/* ---------- 触屏 ---------- */
+#touch{position:fixed;inset:0;z-index:8;pointer-events:none;display:none}
+#touch button{position:absolute;bottom:22px;margin:0;padding:0;width:66px;height:66px;
+  border-radius:50%;font-size:20px;letter-spacing:0;pointer-events:auto;
+  background:rgba(9,12,18,.6);color:var(--ink);border:1px solid var(--line);
+  box-shadow:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#btnL{left:18px}#btnR{left:100px}
+#btnE{right:18px;background:linear-gradient(180deg,rgba(255,203,112,.92),rgba(255,138,48,.92));color:#180c04}
+@media (pointer:coarse){#touch{display:block}}
+@media (max-width:720px){
+  #panelTemp{min-width:126px;padding:7px 10px;top:10px;left:10px}
+  .temp b{font-size:29px}
+  #panelStage{max-width:52vw;padding:7px 10px;top:10px;right:10px}
+  #stageName{font-size:13px}#stageGoal{font-size:10.5px}
+  #panelRes{bottom:104px;left:10px;min-width:158px;padding:7px 10px}
+  .mini{width:82px}
+  #hint{bottom:150px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud">
+  <div class="panel" id="panelTemp">
+    <div class="label">室内温度</div>
+    <div class="temp"><b id="tempVal">2.0</b><i>°C</i></div>
+    <div class="track"><i id="tempBar" style="background:linear-gradient(90deg,#4aa8d8,#ffb456)"></i></div>
+    <div class="sub" id="outTemp">室外 -8.0°C</div>
+  </div>
+
+  <div class="panel" id="panelStage">
+    <div id="stageName">一 · 取暖</div>
+    <div id="stageGoal">把室内温度升到 20°C</div>
+    <div class="track" id="stageBar"><i id="stageBarFill" style="background:linear-gradient(90deg,#ff8a30,#ffd479)"></i></div>
+  </div>
+
+  <div class="panel" id="panelRes">
+    <div class="row"><span>木料</span><b id="woodVal">0</b></div>
+    <div class="row"><span>钱</span><b id="moneyVal">0</b></div>
+    <div class="row"><span>体力</span><div class="mini"><i id="staBar" style="background:linear-gradient(90deg,#7fd6a0,#c9f0b8)"></i></div></div>
+    <div class="row"><span>体温</span><div class="mini"><i id="hpBar" style="background:linear-gradient(90deg,#ff7a5c,#ffd08a)"></i></div></div>
+    <div class="row lv"><span id="axeLv">斧 Lv.1</span><span id="bootLv">靴 Lv.1</span></div>
+  </div>
+</div>
+
+<div id="hint"><kbd>E</kbd><span id="hintText"></span></div>
+<div id="toast"></div>
+
+<div id="touch">
+  <button id="btnL">&#9664;</button>
+  <button id="btnR">&#9654;</button>
+  <button id="btnE">E</button>
+</div>
+
+<div id="shop" class="hide">
+  <div class="shopbox">
+    <div class="shoptop">
+      <span class="shoptitle">木 料 收 购 站</span>
+      <span class="shopwallet">木料 <b id="shopWood">0</b> · 钱 <b id="shopMoney">0</b></span>
+    </div>
+    <div id="shopBody"></div>
+    <button id="btnShopClose">离 开</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="card" id="card">
+    <div class="title">焚 城</div>
+    <div class="subtitle">从一根柴火开始</div>
+    <div class="rule">
+      <div><span class="dot"></span>往右是林子。<em>越远的树越硬，木料成倍地多</em></div>
+      <div><span class="dot"></span>房子<em>左边</em>的收购站收木料，换钱买斧头和靴子</div>
+      <div><span class="dot"></span>按住 <em>E</em> 可以把木料连着倒进壁炉，越投越快</div>
+      <div><span class="dot"></span>室外会冻僵；<em>温度越高越难往上顶</em></div>
+      <div><span class="dot"></span>烧到 <s>500°C</s> 木屋会被烧穿</div>
+    </div>
+    <button id="btnStart">开 始</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   0. 工具
+   ============================================================ */
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d', { alpha:false });
+const $ = id => document.getElementById(id);
+
+// roundRect 兜底（Chrome<99 / 旧 Safari）：原型和实例都挂一份
+if (typeof ctx.roundRect !== 'function'){
+  const rr = function(x,y,w,h,r){
+    if (typeof r === 'number') r = [r,r,r,r];
+    const m = Math.min(w,h)/2;
+    r = r.map(v => Math.min(v, m));
+    this.moveTo(x+r[0], y);
+    this.lineTo(x+w-r[1], y);
+    this.quadraticCurveTo(x+w, y, x+w, y+r[1]);
+    this.lineTo(x+w, y+h-r[2]);
+    this.quadraticCurveTo(x+w, y+h, x+w-r[2], y+h);
+    this.lineTo(x+r[3], y+h);
+    this.quadraticCurveTo(x, y+h, x, y+h-r[3]);
+    this.lineTo(x, y+r[0]);
+    this.quadraticCurveTo(x, y, x+r[0], y);
+    return this;
+  };
+  try { CanvasRenderingContext2D.prototype.roundRect = rr; } catch(e){}
+  try { ctx.roundRect = rr; } catch(e){}
+}
+
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const lerp  = (a,b,t) => a+(b-a)*t;
+const rnd   = (a,b) => a+Math.random()*(b-a);
+const mixc  = (c1,c2,t) => 'rgb('+Math.round(lerp(c1[0],c2[0],t))+','+
+                                   Math.round(lerp(c1[1],c2[1],t))+','+
+                                   Math.round(lerp(c1[2],c2[2],t))+')';
+
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  // innerWidth/Height 偶发取到 0（隐藏、会话恢复、打印预览）会让画布变成 0 尺寸而全黑
+  const vw = window.innerWidth  || document.documentElement.clientWidth  || 960;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 640;
+  W = Math.max(320, Math.round(vw));
+  H = Math.max(240, Math.round(vh));
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  S.groundY = H*0.80;
+  if (S.scene === 'indoor') S.player.x = clamp(S.player.x, 70, Math.max(80, W-70));
+  buildTowers();
+}
+addEventListener('resize', resize);
+
+/* ============================================================
+   1. 世界常量
+   ============================================================ */
+const WORLD_W   = 7200;                       // 森林纵深
+const HOUSE_L   = 480, HOUSE_R = 820, HOUSE_W = HOUSE_R - HOUSE_L;
+const DOOR_X    = (HOUSE_L+HOUSE_R)/2;
+const SHOP_X    = 330;                        // 收购站挪近些，站在门口就能看见
+const VILLAGE_X = 716;                        // 出生点：紧挨大门右侧
+const TREE_NEAR = 1060;                       // 第一棵树
+const FONT_S    = '"Songti SC","Noto Serif SC","STSong",serif';
+const FONT_N    = '"Bahnschrift","DIN Alternate",sans-serif';
+
+// 四个投柴节点：60 根 -> 15°C，300 根 -> 60°C，2000 根 -> 200°C，10000 根 -> 500°C
+const THRESH = { warm:15, smoke:60, burn:200, blaze:500, xian:60 };
+const PH_BURN = 5;         // 从这一阶段起屋子已烧穿，只剩观赏
+const REACH_DOOR  = 105;   // 门口
+const REACH_FIRE  = 145;   // 壁炉（与门口刻意不重叠）
+const REACH_SHOP  = 120;   // 收购站
+
+const K_ON = 0.13, K_OFF = 0.07;
+// 直接把「累计投柴 -> 目标室温」画成折线，四个节点精确命中。
+// 之前用单一公式拟合，四个约束两个自由度拟合不上，还会因渐近逼近卡在阈值下方。
+const HEAT_CURVE = [
+  { n:0,     t:-8 },
+  { n:60,    t:15 },
+  { n:300,   t:60 },
+  { n:2000,  t:200 },
+  { n:10000, t:500 }
+];
+function heatTarget(n){
+  if (n <= HEAT_CURVE[0].n) return HEAT_CURVE[0].t;
+  for (let i=1;i<HEAT_CURVE.length;i++){
+    const a = HEAT_CURVE[i-1], b = HEAT_CURVE[i];
+    if (n <= b.n) return lerp(a.t, b.t, (n - a.n) / (b.n - a.n));
+  }
+  const last = HEAT_CURVE[HEAT_CURVE.length-1];
+  return last.t + (n - last.n) * 0.05;
+}
+const FUEL_PER_WOOD = 10, BURN_RATE = 0.25, FUEL_MAX = 120000;
+
+const STAMINA_MAX = 260, STAMINA_CHOP = 4, STAMINA_FREEZE = 118;
+// 森林纵深拉长后单程距离翻倍，寒冷速率要相应放缓，
+// 否则还没走到中林就开始掉体温，出门就只剩「赶紧跑回来」这一种玩法。
+// 体温条空了（寒冷满）就该进入倒计时：掉血必须快到和「条已见底」相称，
+// 之前 2.5/s 意味着条空了还能晃 40 秒，反馈完全对不上。
+const COLD_RATE = 2.0, COLD_HURT = 8;
+const BASE_SPEED = 176;
+
+// 林地共六带：前三带是原本的数值，后面续三带更硬更肥
+const TREE_ZONES = [
+  // shape: 0 尖松 / 1 圆冠 / 2 宽冠 / 3 双干 / 4 伞形 / 5 塔形
+  // pal 按人眼亮度逐档变暗（52 -> 49 -> 43 -> 42 -> 38 -> 25），
+  // 保证「越深越暗」读得出来；之前雾林比近林还亮，层次是乱的。
+  { name:'近林', to:2100,  hp:4,  yield:16,   scale:1.00, layers:3, pal:[34,62,48], shape:0 },
+  { name:'中林', to:3200,  hp:8,  yield:60,   scale:1.24, layers:3, pal:[28,58,54], shape:1 },
+  { name:'深林', to:4300,  hp:16, yield:200,  scale:1.52, layers:4, pal:[22,50,58], shape:2 },
+  { name:'老林', to:5400,  hp:32, yield:560,  scale:1.78, layers:4, pal:[30,46,50], shape:3 },
+  { name:'雾林', to:6400,  hp:48, yield:1500, scale:2.05, layers:5, pal:[34,36,56], shape:4 },
+  { name:'黑林', to:99999, hp:64, yield:4000, scale:2.35, layers:5, pal:[24,22,42], shape:5 }
+];
+function zoneAt(x){
+  for (let i=0;i<TREE_ZONES.length;i++) if (x < TREE_ZONES[i].to) return TREE_ZONES[i];
+  return TREE_ZONES[TREE_ZONES.length-1];
+}
+
+const WOOD_PRICE = 15;
+// 装备从 Lv.0 起步，**等级本身没有上限**——唯一的闸门是「每个阶段每种最多升两级」。
+// 一共四个投柴阶段，所以实际能练到 Lv.8。
+// 价格随等级递增，效果线性增长：斧每级 +0.5×，靴每级 +25%。
+const GEAR = [
+  { key:'axe',  name:'伐木斧', desc:'每下一斧的木料',
+    cost: function(lv){ return Math.round(250 * Math.pow(1.30, lv)); },
+    label: function(lv){ const m = 1 + lv*0.5; return (m % 1 === 0 ? m : m.toFixed(1)) + '×'; } },
+  { key:'boot', name:'雪地靴', desc:'移动速度',
+    cost: function(lv){ return Math.round(200 * Math.pow(1.30, lv)); },
+    label: function(lv){ return Math.round((1 + lv*0.25)*100) + '%'; } }
+];
+
+/* ============================================================
+   2. 状态
+   ============================================================ */
+const S = {
+  started:false, over:false, won:false, t:0,
+  scene:'outdoor',                 // outdoor | indoor | xian
+  phase:1,
+  groundY:0, camX:0, shake:0, flash:0,
+
+  wood:0, stamina:STAMINA_MAX, cold:0, health:100,
+  inTemp:2, outTemp:-8, totalWood:0, fuel:0,
+  forestFire:0, xianTemp:15, xianBoost:0,
+
+  money:0, axe:0, boot:0,          // 收购站升级（Lv.0 起步）
+  upLeft:{ axe:2, boot:2 },        // 本阶段每种装备还剩几次升级机会
+  xianCin:false,
+  chopped:0,                       // 累计伐木量
+  paused:false,                    // 商店打开时暂停
+
+  ct:0,                            // 动作冷却
+  feedCd:0, holdE:false, holdT:0,  // 长按连续投柴
+  feedCount:0,                     // 本次连投已投几根（决定投柴节奏）
+  clickFeed:false,                 // 鼠标点壁炉后自动转入连投
+  cine:null,
+  auto:null,
+  woodFx:0,                        // 投柴动画节流
+
+  player:{ x:VILLAGE_X, vx:0, face:1, walk:0, chop:0, hurt:0 },
+  trees:[], parts:[], snow:[], stars:[], hills:[], towers:[],
+  keys:{},
+};
+
+function makeTree(x){
+  const z = zoneAt(x);
+  const s = z.scale;
+  return {
+    x, zone:z,
+    rate: z.yield / z.hp,     // 每下一斧的基础木料
+    stock: z.yield,           // 这棵树一共能出多少木料
+    pending: 0,               // 已经砍下、但要等树倒才归你的木料
+    h:(150+Math.random()*95)*s, w:(78+Math.random()*46)*s,
+    hp:z.hp, maxHp:z.hp, stump:0, shake:0, burn:0, lit:0, seed:Math.random()*100
+  };
+}
+function buildTowers(){
+  S.towers = [];
+  if (W < 10 || H < 10) return;
+  let tx = -60;
+  while (tx < W+420){
+    const tw = rnd(38,92), th = rnd(H*0.14, H*0.52);
+    const win = [];
+    for (let wy=0; wy<th-22; wy+=17)
+      for (let wx=6; wx<tw-11; wx+=14)
+        if (Math.random()>0.30) win.push({x:wx,y:wy});
+    S.towers.push({ x:tx, w:tw, h:th, win });
+    tx += tw + rnd(6,30);
+  }
+}
+function buildWorld(){
+  S.trees = [];
+  let x = TREE_NEAR;
+  while (x < WORLD_W-140){
+    S.trees.push(makeTree(x));
+    const zi = TREE_ZONES.indexOf(zoneAt(x));
+    x += (132+Math.random()*72) * (1 + zi*0.13);   // 越深的林子越稀疏
+  }
+
+  S.snow = [];
+  for (let i=0;i<300;i++) S.snow.push({
+    x:Math.random()*WORLD_W, y:Math.random()*Math.max(1,H),
+    r:rnd(0.8,2.6), s:rnd(14,46), d:rnd(0,Math.PI*2)
+  });
+
+  S.stars = [];
+  for (let i=0;i<400;i++) S.stars.push({
+    x:Math.random()*WORLD_W, y:Math.random()*H*0.55,
+    r:rnd(0.5,1.7), a:rnd(.25,.95), p:Math.random()*Math.PI*2
+  });
+
+  S.hills = [];
+  for (let l=0;l<3;l++){
+    const pts=[]; let hx=-200;
+    while (hx < WORLD_W+400){
+      pts.push({ x:hx, y:H*(0.44+l*0.075) - rnd(30,120)*(1-l*0.22) });
+      hx += rnd(180,320);
+    }
+    S.hills.push(pts);
+  }
+  buildTowers();
+}
+
+/* ============================================================
+   3. 粒子
+   ============================================================ */
+// 火焰/烟雾预渲染成精灵：此前每个粒子每帧都新建 radialGradient，
+// 是纯 CPU 的高频重活，也是压垮渲染进程、导致画面冻结/黑屏的主因。
+const SPR = {};
+function mkGlow(size, stops){
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const r = size/2;
+  const rg = g.createRadialGradient(r,r,0,r,r,r);
+  for (const s of stops) rg.addColorStop(s[0], s[1]);
+  g.fillStyle = rg;
+  g.fillRect(0,0,size,size);
+  return c;
+}
+function buildSprites(){
+  SPR.fireHot = mkGlow(64, [[0,'rgba(255,248,224,1)'],[0.28,'rgba(255,206,110,0.66)'],
+                            [0.62,'rgba(255,140,40,0.22)'],[1,'rgba(255,90,20,0)']]);
+  SPR.fireMid = mkGlow(64, [[0,'rgba(255,226,168,1)'],[0.28,'rgba(255,160,60,0.60)'],
+                            [0.62,'rgba(240,96,20,0.20)'],[1,'rgba(210,60,10,0)']]);
+  SPR.fireLow = mkGlow(64, [[0,'rgba(255,190,120,1)'],[0.28,'rgba(230,110,36,0.52)'],
+                            [0.62,'rgba(190,60,14,0.18)'],[1,'rgba(150,40,8,0)']]);
+}
+
+const PART_MAX = 260;
+function emit(type, x, y, opt){
+  opt = opt||{};
+  const n = opt.n||1;
+  for (let i=0;i<n;i++){
+    if (S.parts.length > PART_MAX) S.parts.shift();
+    const spread = opt.spread||0;
+    const p = {
+      type,
+      x: x + rnd(-spread,spread),
+      y: y + rnd(-spread*0.5, spread*0.5),
+      vx: rnd(-(opt.vx||0), opt.vx||0),
+      vy: opt.vy!==undefined ? rnd(opt.vy*0.5, opt.vy) : rnd(-90,-40),
+      life: opt.life || rnd(.5,1.3),
+      age: 0,
+      r: opt.r || rnd(5,14),
+      roll: rnd(-2,2),
+      hue: opt.hue!==undefined ? opt.hue : rnd(16,44),
+      alpha: opt.alpha!==undefined ? opt.alpha : 1
+    };
+    if (type === 'wood'){
+      p.sx = x; p.sy = y;
+      p.tx = opt.tx!==undefined ? opt.tx : x;
+      p.ty = opt.ty!==undefined ? opt.ty : y;
+      p.rot = rnd(-3,3);
+      p.len = opt.len || rnd(16,26);
+    }
+    S.parts.push(p);
+  }
+}
+function stepParts(dt){
+  for (let i=S.parts.length-1;i>=0;i--){
+    const p = S.parts[i];
+    p.age += dt;
+    if (p.age >= p.life){ S.parts.splice(i,1); continue; }
+    if (p.type === 'wood'){
+      const k = p.age / p.life;
+      p.x = lerp(p.sx, p.tx, k);
+      p.y = lerp(p.sy, p.ty, k) - Math.sin(k*Math.PI)*72;   // 抛物线
+      p.rot += dt*9;
+      continue;
+    }
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    if (p.type==='fire'){ p.vy -= 34*dt; p.vx *= (1-1.7*dt); p.r += 15*dt; }
+    else if (p.type==='smoke'){ p.vy -= 6*dt; p.vx += Math.sin(p.age*1.6+p.roll)*12*dt; p.r += 24*dt; }
+    else if (p.type==='chip'){ p.vy += 620*dt; }
+    else if (p.type==='ash'){ p.vy += 16*dt; p.vx += Math.sin(p.age*2.3+p.roll)*20*dt; }
+  }
+}
+function drawParts(list, camX){
+  ctx.save();
+  for (let i=0;i<list.length;i++){
+    const p = list[i];
+    const k = 1 - p.age/p.life;
+    const sx = p.x - camX, sy = p.y;
+    if (sx < -80 || sx > W+80 || sy < -140 || sy > H+140) continue;
+    ctx.globalAlpha = 1;
+    if (p.type==='fire'){
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = clamp(k * p.alpha, 0, 1);
+      const d = p.r*2;
+      const spr = p.hue>36 ? SPR.fireHot : (p.hue>22 ? SPR.fireMid : SPR.fireLow);
+      ctx.drawImage(spr, sx-p.r, sy-p.r, d, d);
+    } else if (p.type==='wood'){
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = clamp(Math.min(1, k*2.2), 0, 1);
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = '#7a5533';
+      ctx.beginPath(); ctx.roundRect(-p.len/2, -4, p.len, 8, 4); ctx.fill();
+      ctx.fillStyle = '#a37c4e';
+      ctx.beginPath(); ctx.arc(p.len/2, 0, 4, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    } else if (p.type==='smoke'){
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba('+(38+18*k|0)+','+(33+15*k|0)+','+(30+14*k|0)+','+(0.24*k)+')';
+      ctx.beginPath(); ctx.arc(sx,sy,p.r,0,6.2832); ctx.fill();
+    } else if (p.type==='chip'){
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(196,164,120,'+(0.9*k)+')';
+      ctx.fillRect(sx,sy,3,2);
+    } else if (p.type==='ash'){
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = (p.hue>40 ? 'rgba(255,150,60,' : 'rgba(140,130,124,')+(0.7*k*p.alpha)+')';
+      ctx.fillRect(sx,sy,2.4,2.4);
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(226,240,255,'+(p.alpha*k)+')';
+      ctx.beginPath(); ctx.arc(sx,sy,p.r,0,6.2832); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* ============================================================
+   4. 音效（WebAudio 合成）
+   ============================================================ */
+let AC=null, fireGain=null, fireSrc=null;
+function initAudio(){
+  if (AC) return;
+  try{
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    const bufSize = AC.sampleRate*2;
+    const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<bufSize;i++) d[i] = (Math.random()*2-1)*0.5;
+    fireSrc = AC.createBufferSource(); fireSrc.buffer = buf; fireSrc.loop = true;
+    const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=320; lp.Q.value=0.7;
+    fireGain = AC.createGain(); fireGain.gain.value = 0;
+    fireSrc.connect(lp); lp.connect(fireGain); fireGain.connect(AC.destination);
+    fireSrc.start();
+  }catch(e){ AC=null; fireGain=null; fireSrc=null; }
+}
+function sfx(kind){
+  if (!AC || AC.state==='suspended') return;
+  const t = AC.currentTime;
+  try{
+    if (kind==='chop'){
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(190,t);
+      o.frequency.exponentialRampToValueAtTime(52,t+0.13);
+      g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.18);
+    } else if (kind==='feed'){
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type='sawtooth'; o.frequency.setValueAtTime(90,t);
+      o.frequency.exponentialRampToValueAtTime(280,t+0.18);
+      g.gain.setValueAtTime(0.001,t); g.gain.linearRampToValueAtTime(0.055,t+0.04);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.24);
+    } else if (kind==='coin'){
+      [880,1320].forEach((f,i)=>{
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type='square'; o.frequency.value=f;
+        const st = t+i*0.08;
+        g.gain.setValueAtTime(0.001,st); g.gain.linearRampToValueAtTime(0.05,st+0.01);
+        g.gain.exponentialRampToValueAtTime(0.001,st+0.16);
+        o.connect(g); g.connect(AC.destination); o.start(st); o.stop(st+0.18);
+      });
+    } else if (kind==='buy'){
+      [523.25,659.25,880].forEach((f,i)=>{
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type='triangle'; o.frequency.value=f;
+        const st = t+i*0.07;
+        g.gain.setValueAtTime(0.001,st); g.gain.linearRampToValueAtTime(0.08,st+0.02);
+        g.gain.exponentialRampToValueAtTime(0.001,st+0.42);
+        o.connect(g); g.connect(AC.destination); o.start(st); o.stop(st+0.45);
+      });
+    } else if (kind==='boom' || kind==='stage'){
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(kind==='boom'?95:160,t);
+      o.frequency.exponentialRampToValueAtTime(28,t+0.9);
+      g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.001,t+1.0);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+1.05);
+    } else if (kind==='win'){
+      [392,523.25,659.25,783.99].forEach((f,i)=>{
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type='sine'; o.frequency.value=f;
+        const st = t+i*0.10;
+        g.gain.setValueAtTime(0.001,st); g.gain.linearRampToValueAtTime(0.09,st+0.04);
+        g.gain.exponentialRampToValueAtTime(0.001,st+1.5);
+        o.connect(g); g.connect(AC.destination); o.start(st); o.stop(st+1.6);
+      });
+    }
+  }catch(e){}
+}
+function updateFireAudio(){
+  // AC 可能为 null 而 fireGain 已被赋过值：直接摸 AC.currentTime 会抛异常
+  if (!AC || !fireGain) return;
+  const target = S.scene==='xian' ? 0.10
+    : (S.fuel>0 ? clamp(0.012 + S.fuel/FUEL_MAX*0.075, 0, 0.10) : 0);
+  try { fireGain.gain.setTargetAtTime(target, AC.currentTime, 0.5); } catch(e){}
+}
+
+/* ============================================================
+   5. 交互
+   ============================================================ */
+const hintEl = $('hint'), hintText = $('hintText'), toastEl = $('toast');
+let toastTimer = 0;
+function toast(msg, dur){
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.classList.remove('on'), (dur||2.6)*1000);
+}
+function showHint(txt){
+  if (txt){ hintText.textContent = txt; hintEl.classList.add('on'); }
+  else hintEl.classList.remove('on');
+}
+
+const STAGES = {
+  1:{ name:'一 · 取暖', goal:'把室内温度升到 '+THRESH.warm+'°C' },
+  2:{ name:'二 · 过热', goal:'把室内温度升到 '+THRESH.smoke+'°C' },
+  3:{ name:'三 · 失控', goal:'把室内温度升到 '+THRESH.burn+'°C' },
+  4:{ name:'四 · 崩坏', goal:'把室内温度升到 '+THRESH.blaze+'°C' },
+  5:{ name:'五 · 焚城', goal:'屋子烧穿了 · 看着它一路烧到西安' }
+};
+
+function furnaceX(){ return W*0.78; }
+function doorIndoorX(){ return Math.max(78, W*0.10); }
+function axeMul(){ return 1 + S.axe*0.5; }      // 斧 Lv0=1× … Lv8=5×
+function bootMul(){ return 1 + S.boot*0.25; }   // 靴 Lv0=100% … Lv8=300%
+
+function nearestTree(){
+  const p = S.player;
+  let best=null, bd=1e9;
+  for (let i=0;i<S.trees.length;i++){
+    const t = S.trees[i];
+    if (t.stump>0 || t.stock<=0) continue;
+    const d = Math.abs(t.x-60 - p.x);
+    if (d < bd){ bd = d; best = t; }
+  }
+  return (best && bd < 120) ? best : null;
+}
+
+function chop(t){
+  const p = S.player;
+  S.ct = 0.40 - S.axe*0.045;                  // 斧头越好，出手越快
+  p.chop = 0.30; p.face = (t.x-60 > p.x) ? 1 : -1;
+  if (S.stamina < STAMINA_CHOP){ toast('体力见底了，回屋歇一会儿'); S.auto=null; return; }
+  S.stamina -= STAMINA_CHOP;
+  t.hp -= 1; t.shake = 0.42;
+
+  // 每下一斧砍下「基础产出 × 斧头等级」，但先记在这棵树上，
+  // 树不倒就不算你的——中途走开，进度也留在树上，回来接着砍
+  t.pending = Math.min(t.stock, t.pending + t.rate * axeMul());
+
+  emit('chip', t.x-60+(p.face>0?-10:10), S.groundY-96, {n:7, spread:14, vx:90, vy:-160, life:rnd(.4,.8), r:3});
+  sfx('chop');
+
+  const fell = (t.hp <= 0 || t.pending >= t.stock);
+  if (fell){
+    const gain = Math.floor(t.pending);
+    S.wood += gain; S.chopped += gain;
+    t.stock = 0; t.pending = 0;
+    t.stump = 9; S.auto = null;
+    emit('chip', t.x-60, S.groundY-70, {n:16, spread:30, vx:130, vy:-210, life:rnd(.5,1.1), r:3});
+    toast(t.zone.name + '的树倒了 · +' + gain + ' 木料');
+  }
+}
+
+/* ---- 投柴 ---- */
+// 投柴节奏：越投越快。关键是起点要够慢（约 0.5 秒一根，看得清一根根飞进去），
+// 后面才快得起来（末尾约 0.004 秒一根），加速比约 125 倍。
+// 起点定太快的话全程都差不多，玩家根本感觉不到在加速。
+function feedInterval(){
+  return clamp(0.28 * Math.pow(S.feedCount + 1, -0.55), 0.004, 0.5);
+}
+function feedOne(){
+  if (S.wood<=0) return false;
+  S.wood--; S.totalWood++; S.feedCount++;
+  S.fuel = Math.min(FUEL_MAX, S.fuel + FUEL_PER_WOOD);
+  const fx = furnaceX(), fy = S.groundY - 66;
+  // 木料从玩家手里划一道弧线飞进炉口
+  const p = S.player;
+  S.woodFx++;
+  if (S.woodFx % 2 === 0){
+    emit('wood', p.x, S.groundY-58, {
+      tx: fx + rnd(-14,14), ty: fy, life: 0.38, n:1, len: rnd(16,26)
+    });
+  }
+  // 粒子与音效按根数节流：高速阶段每秒可投几十根，逐根发射会淹掉粒子池
+  if (S.feedCount % 4 === 0)
+    emit('fire', fx, fy, {n:4, spread:18, vx:30, vy:-140, life:rnd(.4,.9), r:rnd(6,14)});
+  if (S.feedCount % 6 === 0)
+    emit('ash', fx, fy-30, {n:2, spread:40, vx:36, vy:-110, life:rnd(1,2), hue:50});
+  if (S.feedCount % 5 === 0) sfx('feed');
+  return true;
+}
+function feedAction(){
+  if (!feedOne()){ toast('没有木料了 —— 去森林砍一些'); S.auto=null; return; }
+  if (S.totalWood === 1) toast('火点着了');
+  else if (S.totalWood === 100) toast('一百根了');
+}
+// 长按时的投柴节拍。独立成函数，好让它在阶段过场期间照常推进
+function tickFeeding(dt){
+  const p = S.player;
+  const atFurnace = (S.scene==='indoor' && S.phase<PH_BURN && S.wood>0
+                     && Math.abs(p.x-furnaceX()) < REACH_FIRE);
+  if (S.holdE && atFurnace){
+    S.holdT += dt;
+    // 按住超过 0.22 秒才进连发，避免轻点也狂投
+    if (S.holdT > 0.22){
+      S.ct = 0;
+      S.feedCd -= dt;
+      // 高速阶段一帧可能投出好几根，累加式保证平均速率不随帧率变
+      let guard = 0;
+      while (S.feedCd <= 0 && guard++ < 24){
+        if (!feedOne()) break;
+        S.feedCd += feedInterval();
+      }
+      if (S.wood <= 0) S.holdE = false;
+    }
+  } else {
+    S.feedCd = 0;
+  }
+  // 松手或离开壁炉，节奏重新从慢开始
+  if (!S.holdE || !atFurnace){ S.feedCount = 0; S.feedCd = 0; }
+}
+
+function addFuelXian(){
+  if (S.wood<=0){ toast('木料空了 · 可火已经不需要你了'); return; }
+  S.wood--;
+  S.xianBoost = Math.min(30, S.xianBoost+1);
+  emit('fire', W*0.5, H*0.80, {n:10, spread:34, vx:50, vy:-190, life:rnd(.5,1.1), r:rnd(8,18)});
+  sfx('feed');
+}
+
+function doAction(){
+  if (!S.started || S.over || S.cine || S.paused) return;
+  const p = S.player;
+  if (S.scene==='outdoor'){
+    if (Math.abs(p.x-SHOP_X) < REACH_SHOP){ openShop(); return; }
+    if (Math.abs(p.x-DOOR_X) < REACH_DOOR){ enterHouse(); return; }
+    if (S.ct > 0) return;
+    const t = nearestTree();
+    if (t){ chop(t); return; }
+    toast('附近没有能砍的树');
+  } else if (S.scene==='indoor'){
+    const dDoor = Math.abs(p.x-doorIndoorX()), dFire = Math.abs(p.x-furnaceX());
+    // 门永远优先：屋子烧穿之后也得能出去看火
+    if (dDoor < REACH_DOOR){ leaveHouse(); return; }
+    if (S.phase>=PH_BURN){ toast('壁炉已经塌进火里了 · 出去看吧'); return; }
+    if (dFire < REACH_FIRE){
+      if (S.ct > 0) return;
+      S.ct = 0.06;
+      feedAction();
+      return;
+    }
+    toast('走到壁炉边上添柴，或者回门口出去');
+  } else if (S.scene==='xian'){
+    addFuelXian();
+  }
+}
+
+function enterHouse(){
+  S.scene = 'indoor';
+  S.player.x = W*0.44; S.player.vx = 0;
+  S.auto = null; S.holdE = false; S.holdT = 0; S.flash = 0.45;
+  S.feedCount = 0; S.feedCd = 0; S.clickFeed = false;
+  // 按屋里实际温度说话，别几百度的屋子还喊冷
+  const T = S.inTemp;
+  let msg;
+  if (T < 0)        msg = '进了屋 · 屋里比外头还冷';
+  else if (T < 10)  msg = '进了屋 · 屋里也很冷';
+  else if (T < 25)  msg = '进了屋 · 总算有点暖意';
+  else if (T < 60)  msg = '进了屋 · 一股热气扑面';
+  else if (T < 150) msg = '进了屋 · 闷得慌';
+  else if (T < 300) msg = '进了屋 · 空气烫得吸不进去';
+  else              msg = '进了屋 · 这地方已经待不住人了';
+  toast(msg);
+}
+function leaveHouse(){
+  S.scene = 'outdoor';
+  S.player.x = DOOR_X + 90; S.player.vx = 0;
+  S.auto = null; S.holdE = false; S.holdT = 0; S.flash = 0.45;
+  S.feedCount = 0; S.feedCd = 0; S.clickFeed = false;
+  if (S.phase >= PH_BURN) toast('整片林子都在烧', 2.4);
+  else if (S.wood === 0) toast('空着手出来的 · 右边就是林子');
+}
+
+/* ---- 收购站 ---- */
+const shopEl = $('shop');
+function openShop(){
+  if (S.paused) return;
+  S.paused = true; S.auto = null; S.holdE = false;
+  shopEl.classList.remove('hide');
+  renderShop();
+}
+function closeShop(){
+  S.paused = false;
+  shopEl.classList.add('hide');
+}
+function renderShop(){
+  $('shopWood').textContent = S.wood;
+  $('shopMoney').textContent = S.money;
+  let h = '';
+  h += '<div class="srow">'
+    +  '<div class="sinfo"><div class="sname">卖 木 料</div>'
+    +  '<div class="sdesc">1 根 = ' + WOOD_PRICE + ' 元 · 卖了就没了，想清楚</div></div>'
+    +  '<button class="sbtn" data-act="sell10"' + (S.wood<10?' disabled':'') + '>卖 10 根</button>'
+    +  '<button class="sbtn" data-act="sell50"' + (S.wood<50?' disabled':'') + '>卖 50 根</button>'
+    +  '<button class="sbtn" data-act="sellall"' + (S.wood<1?' disabled':'') + '>全部卖出</button>'
+    +  '</div>';
+  for (let i=0;i<GEAR.length;i++){
+    const it = GEAR[i];
+    const cur = S[it.key];
+    const cost = it.cost(cur);
+    const left = S.upLeft[it.key] || 0;
+    h += '<div class="srow">'
+      +  '<div class="sinfo"><div class="sname">' + it.name
+      +  ' <span class="slv">Lv.' + cur + '</span></div>'
+      +  '<div class="sdesc">' + it.desc + ' ' + it.label(cur)
+      +  ' → ' + it.label(cur+1) + ' · 本阶段还可升 ' + left + ' 次</div></div>'
+      +  (left > 0
+          ? '<button class="sbtn' + (S.money<cost?' poor':'') + '" data-act="up:' + it.key + '">'
+            + cost + ' 元</button>'
+          : '<span class="smax">本阶段已满</span>')
+      +  '</div>';
+  }
+  const body = $('shopBody');
+  body.innerHTML = h;
+  const btns = body.querySelectorAll('[data-act]');
+  for (let i=0;i<btns.length;i++){
+    (function(b){ b.addEventListener('click', function(){ shopAct(b.getAttribute('data-act')); }); })(btns[i]);
+  }
+}
+function shopAct(act){
+  if (act==='sell10' || act==='sell50' || act==='sellall'){
+    const batch = act==='sell10' ? 10 : (act==='sell50' ? 50 : S.wood);
+    const n = Math.min(batch, S.wood);
+    if (n > 0){
+      S.wood -= n; S.money += n*WOOD_PRICE;
+      sfx('coin');
+      toast('卖出 ' + n + ' 根木料 · +' + (n*WOOD_PRICE) + ' 元');
+    }
+  } else if (act.indexOf('up:') === 0){
+    const key = act.slice(3);
+    const it = GEAR.filter(function(i){ return i.key===key; })[0];
+    if (!it) return;
+    if ((S.upLeft[key]||0) <= 0){ toast('这一阶段最多升两级 · 把火再烧旺些'); return; }
+    const cost = it.cost(S[key]);
+    if (S.money < cost){ toast('钱不够 · 还差 ' + (cost-S.money) + ' 元'); return; }
+    S.money -= cost;
+    S.upLeft[key] = (S.upLeft[key]||0) - 1;
+    S[key]++;
+    sfx('buy');
+    toast(it.name + ' 升到 Lv.' + S[key]);
+  }
+  renderShop();
+}
+
+/* ---- 输入 ---- */
+addEventListener('keydown', e=>{
+  const k = (e.key||'').toLowerCase();
+  if (['arrowleft','arrowright','arrowup','arrowdown',' '].indexOf(k)>=0) e.preventDefault();
+  S.keys[k] = true;
+  if (k==='e' || k===' ' || k==='enter'){
+    // 用「按键是否仍按着」来判断自动重复，而不是 e.repeat：
+    // 部分环境长按不置 repeat 标志，会导致每次重复都把 holdT 清零，
+    // 连发和加速永远起不来（表现为一直慢吞吞、看不出加速）。
+    // holdE 为真说明手还没松，这次 keydown 是浏览器自动重复，忽略即可。
+    if (S.holdE) return;
+    S.auto = null; S.clickFeed = false;
+    S.holdE = true; S.holdT = 0;
+    doAction();
+    return;
+  }
+  if (e.repeat) return;
+  if (k==='escape'){ if (S.paused) closeShop(); else { S.auto = null; S.holdE=false; } }
+});
+addEventListener('keyup', e=>{
+  const k = (e.key||'').toLowerCase();
+  S.keys[k] = false;
+  if (k==='e' || k===' ' || k==='enter'){ S.holdE = false; S.holdT = 0; }
+});
+addEventListener('blur', ()=>{ S.holdE = false; S.holdT = 0; });
+
+function bindHold(el, key){
+  const on = ev=>{ ev.preventDefault(); S.keys[key]=true; };
+  const off = ev=>{ ev.preventDefault(); S.keys[key]=false; };
+  el.addEventListener('touchstart', on, {passive:false});
+  el.addEventListener('touchend', off, {passive:false});
+  el.addEventListener('touchcancel', off, {passive:false});
+  el.addEventListener('mousedown', on);
+  el.addEventListener('mouseup', off);
+  el.addEventListener('mouseleave', off);
+}
+bindHold($('btnL'),'a');
+bindHold($('btnR'),'d');
+
+const btnE = $('btnE');
+function btnEDown(ev){
+  ev.preventDefault();
+  S.auto = null; S.holdE = true; S.holdT = 0;
+  doAction();
+}
+function btnEUp(ev){ ev.preventDefault(); S.holdE = false; S.holdT = 0; }
+// 用 touchstart/mousedown 而不是 click：长按要立刻开始，click 要等抬手才触发
+btnE.addEventListener('touchstart', btnEDown, {passive:false});
+btnE.addEventListener('touchend', btnEUp, {passive:false});
+btnE.addEventListener('touchcancel', btnEUp, {passive:false});
+btnE.addEventListener('mousedown', btnEDown);
+btnE.addEventListener('mouseup', btnEUp);
+btnE.addEventListener('mouseleave', btnEUp);
+$('btnShopClose').addEventListener('click', ()=>{ closeShop(); });
+
+/* ---- 鼠标点击寻路 ---- */
+cv.addEventListener('pointerdown', e=>{
+  if (!S.started || S.over || S.cine || S.paused) return;
+  const mx = e.clientX, my = e.clientY;
+  if (S.scene==='xian'){ addFuelXian(); return; }
+  if (S.scene==='indoor'){
+    if (Math.abs(mx - doorIndoorX()) < 70 && my > H*0.30){
+      S.auto = { x: doorIndoorX() };
+      if (Math.abs(S.player.x-doorIndoorX()) < 22){ S.auto=null; leaveHouse(); }
+      return;
+    }
+    if (S.phase>=PH_BURN){ return; }        // 壁炉塌了，但门照走
+    if (Math.abs(mx - furnaceX()) < 150 && my > H*0.30){
+      S.auto = { x: furnaceX()-90 };
+      S.clickFeed = true;                   // 走到炉边直接转入连投
+      return;
+    }
+    S.auto = null;
+    S.walkTarget = clamp(mx, 70, W-70);
+    return;
+  }
+  // 室外
+  const wx = mx + S.camX;
+  if (Math.abs(wx-SHOP_X) < 130 && my > H*0.36){
+    S.auto = { x: SHOP_X + 96 };
+    return;
+  }
+  if (Math.abs(wx-DOOR_X) < 150 && my > H*0.40){
+    S.auto = { x: DOOR_X - 70 };
+    return;
+  }
+  let best=null, bd=1e9;
+  for (let i=0;i<S.trees.length;i++){
+    const t = S.trees[i];
+    if (t.stump>0 || t.stock<=0) continue;
+    const d = Math.abs(t.x - wx);
+    if (d<bd){ bd=d; best=t; }
+  }
+  if (best && bd < 260){
+    S.auto = { tree:best, x: best.x-60 - 54 };
+  } else {
+    S.auto = null;
+    S.walkTarget = clamp(wx, 60, WORLD_W-60);
+  }
+});
+
+/* ============================================================
+   6. 阶段 / 流程
+   ============================================================ */
+function setPhase(n){
+  S.phase = n;
+  S.upLeft = { axe:2, boot:2 };   // 每个阶段每种装备最多升两级
+  sfx(n>=PH_BURN ? 'boom' : 'stage');
+  S.shake = n>=PH_BURN ? 26 : 10;
+  S.flash = 0.6;
+}
+function cine(text, sub, dur, onEnd){
+  S.cine = { t:0, dur:dur||2.6, text:text, sub:sub||'', onEnd:onEnd||null };
+  S.shake = 30; S.flash = 0.9;
+  S.auto = null;   // 过场不碰 holdE/节奏：手里的柴照投（烧穿那一档除外）
+}
+function checkPhase(){
+  if (S.phase===1 && S.inTemp>=THRESH.warm){
+    setPhase(2); toast('屋里暖起来了');
+  } else if (S.phase===2 && S.inTemp>=THRESH.smoke){
+    setPhase(3);
+    cine('墙板开始发烫', '木头在高温里发出细小的爆裂声。');
+  } else if (S.phase===3 && S.inTemp>=THRESH.burn){
+    setPhase(4);
+    cine('整间屋子都在响', '窗玻璃裂了，墙缝里往外冒火苗。');
+  } else if (S.phase===4 && S.inTemp>=THRESH.blaze){
+    setPhase(PH_BURN);
+    cine('屋子烧穿了', '屋顶塌进火里，火从窗口窜出去，林子几秒就没了。壁炉也没了。');
+  } else if (S.phase===PH_BURN && S.forestFire>=1 && !S.xianCin){
+    S.xianCin = true;
+    cine('热浪越过秦岭', '西安市的气温开始以肉眼可见的速度往上跳。', 3.0,
+         function(){ S.scene='xian'; S.flash=1; S.shake=22; });
+  } else if (S.phase===PH_BURN && S.scene==='xian' && S.xianTemp>=THRESH.xian){
+    triggerWin();
+  }
+}
+
+/* ============================================================
+   7. 更新
+   ============================================================ */
+function update(dt){
+  S.t += dt;
+  S.ct = Math.max(0, S.ct-dt);
+  S.shake = Math.max(0, S.shake - dt*46);
+  S.flash = Math.max(0, S.flash - dt*1.9);
+  const p = S.player;
+
+  stepParts(dt);
+  // 投柴节拍放在过场判定之前：阶段提示不该打断手里的活
+  tickFeeding(dt);
+
+  /* --- 过场 --- */
+  if (S.cine){
+    S.cine.t += dt;
+    if (S.cine.t >= S.cine.dur){
+      const f = S.cine.onEnd; S.cine = null;
+      if (f) f();
+    }
+    updateFireAudio();
+    updateCamera(dt);
+    return;
+  }
+
+  /* --- 移动 --- */
+  let move = 0;
+  if (S.keys['a'] || S.keys['arrowleft'])  move -= 1;
+  if (S.keys['d'] || S.keys['arrowright']) move += 1;
+  if (move!==0) { S.auto = null; S.walkTarget = null; S.clickFeed = false; S.holdE = false; }
+
+  if (S.scene==='outdoor' && S.auto){
+    const d = S.auto.x - p.x;
+    if (S.auto.tree){
+      const t = S.auto.tree;
+      if (!t || t.hp<=0 || t.stump>0 || t.stock<=0 || S.stamina<STAMINA_CHOP){ S.auto = null; }
+      else if (Math.abs(d) < 18){ doAction(); }
+      else move = d>0 ? 1 : -1;
+    } else {
+      if (Math.abs(d) < 16){ S.auto = null; doAction(); }
+      else move = d>0 ? 1 : -1;
+    }
+  }
+  if (S.scene==='indoor' && S.auto){
+    const d = S.auto.x - p.x;
+    if (Math.abs(d) < 14){
+      S.auto = null;
+      if (S.clickFeed){ S.clickFeed = false; S.holdE = true; S.holdT = 0.30; }
+      else doAction();
+    }
+    else move = d>0 ? 1 : -1;
+  }
+  if (move===0 && S.walkTarget!=null){
+    const d = S.walkTarget - p.x;
+    if (Math.abs(d) < 8) S.walkTarget = null;
+    else move = d>0 ? 1 : -1;
+  }
+
+  if (move!==0){
+    const speed = (S.cold>=100 ? STAMINA_FREEZE : BASE_SPEED) * bootMul();
+    p.vx = lerp(p.vx, move*speed, 1-Math.pow(0.0009, dt));
+    p.face = move>0 ? 1 : -1;
+    p.walk += dt*10;
+  } else {
+    p.vx = lerp(p.vx, 0, 1-Math.pow(0.0005, dt));
+    p.walk *= 0.9;
+  }
+  p.x += p.vx*dt;
+
+  if (S.scene==='outdoor') p.x = clamp(p.x, 40, WORLD_W-60);
+  else if (S.scene==='indoor') p.x = clamp(p.x, 70, W-70);
+  p.chop = Math.max(0, p.chop-dt);
+
+  /* --- 体力 / 寒冷 / 体温 --- */
+  if (S.scene==='indoor'){
+    S.stamina = Math.min(STAMINA_MAX, S.stamina + dt*18);
+    S.cold = Math.max(0, S.cold - dt*34);
+    S.health = Math.min(100, S.health + dt*5);
+  } else if (S.scene==='outdoor'){
+    if (S.phase < PH_BURN){
+      S.stamina = Math.min(STAMINA_MAX, S.stamina + dt*1.4);
+      S.cold = clamp(S.cold + dt*COLD_RATE, 0, 100);
+      if (S.cold >= 100) S.health -= dt*COLD_HURT;
+    } else {
+      // 林子已在烧：不再有寒冷，体温只回升不减。此时纯观赏，不该再被惩罚
+      S.stamina = Math.min(STAMINA_MAX, S.stamina + dt*8);
+      S.cold = 0;
+      S.health = Math.min(100, S.health + dt*6);
+    }
+  } else {
+    S.stamina = Math.min(STAMINA_MAX, S.stamina + dt*20);
+    S.health = Math.min(100, S.health + dt*6);
+  }
+  p.hurt = (S.cold>=100 && S.scene==='outdoor' && S.phase<PH_BURN) ? 1 : Math.max(0, p.hurt-dt*3);
+
+  if (S.health <= 0 && !S.over){
+    S.over = true;
+    sfx('boom');
+    toast('你倒在了雪地里', 3.2);
+  }
+
+  /* --- 树木恢复 --- */
+  for (let i=0;i<S.trees.length;i++){
+    const t = S.trees[i];
+    if (t.shake>0) t.shake = Math.max(0, t.shake-dt*2.6);
+    if (t.stump>0){
+      t.stump -= dt;
+      if (t.stump<=0){
+        // 关键：木料存量必须一起恢复，否则重长的树砍了不给木料
+        t.hp = t.maxHp;
+        t.stock = t.zone.yield;
+        t.pending = 0;
+        t.stump = 0;
+        t.shake = 0.3;
+      }
+    }
+  }
+
+  /* --- 壁炉燃烧 --- */
+  if (S.fuel > 0){
+    const prev = S.fuel;
+    S.fuel = Math.max(0, S.fuel - dt*BURN_RATE);
+    const fx = (S.scene==='indoor') ? furnaceX() : DOOR_X;
+    const fy = (S.scene==='indoor') ? S.groundY-64 : S.groundY-40;
+    const lvl = clamp(S.fuel/900, 0, 1.5);
+    if (Math.random() < dt*(26+40*lvl))
+      emit('fire', fx, fy, {n:1, spread:26*lvl, vx:26, vy:-130-lvl*90, life:rnd(.5,1.1), r:rnd(5,10+12*lvl)});
+    if (Math.random() < dt*6) emit('ash', fx, fy-40, {n:1, spread:50, vx:26, vy:-110, life:rnd(1.4,2.6), hue:48});
+    if (lvl > 1.0 && Math.random() < dt*10)
+      emit('smoke', fx + rnd(-30,30), S.groundY-170, {n:1, r:rnd(16,30), vy:-40, life:rnd(1.6,3), alpha:1});
+    if (prev>0 && S.fuel===0) toast('火灭了');
+  }
+
+  /* --- 温度模型 --- */
+  if (S.phase >= PH_BURN){
+    S.outTemp = lerp(S.outTemp, 140 + S.forestFire*520, dt*0.28);
+  }
+  let target = heatTarget(S.totalWood);
+  // 烧穿之后室外已成火场，屋子（残骸）的温度跟着环境一起失控
+  if (S.phase >= PH_BURN) target = Math.max(target, S.outTemp + 400);
+  if (S.fuel > 0) S.inTemp += (target - S.inTemp) * Math.min(1, dt*K_ON);
+  else            S.inTemp += (S.outTemp - S.inTemp) * Math.min(1, dt*K_OFF);
+
+  /* --- 森林大火蔓延 --- */
+  if (S.phase >= PH_BURN){
+    const drive = Math.max(0, S.inTemp - 100);
+    S.forestFire = clamp(S.forestFire + dt*(0.0065 + drive*0.00009), 0, 1);
+    const n = S.trees.length;
+    for (let i=0;i<n;i++){
+      const t = S.trees[i];
+      const trigger = (i/n)*0.72;
+      if (S.forestFire > trigger){
+        t.burn = Math.min(1, t.burn + dt*(0.5 + (S.forestFire-trigger)*1.6));
+        if (t.lit===0 && t.burn>0.25) t.lit = 1;
+      }
+      if (t.burn>0.2 && Math.random() < dt*(3+t.burn*22))
+        emit('fire', t.x-60+rnd(-40,40), S.groundY-rnd(40,t.h+40),
+             {n:1, spread:16, vx:22, vy:-110-t.burn*130, life:rnd(.5,1.2), r:rnd(6,14+t.burn*16)});
+    }
+    if (Math.random() < dt*24){
+      emit('ash', rnd(S.camX, S.camX+W), S.groundY-rnd(60,300),
+           {n:1, spread:0, vx:60, vy:-70, life:rnd(1.5,3), hue:55});
+    }
+  }
+
+  /* --- 西安市温度 --- */
+  if (S.phase >= 5){
+    // 放慢一点，让这最后一程有过程感；太快会「一瞬间就 60 度」
+    S.xianTemp += dt * (0.35 + Math.max(0, S.inTemp-60)*0.0011 + S.xianBoost*0.008);
+    if (S.scene==='xian' && Math.random() < dt*16){
+      emit('fire', rnd(0,W), H*rnd(0.86,0.98), {n:1, spread:20, vx:40, vy:-140, life:rnd(.5,1), r:rnd(6,16)});
+    }
+  }
+
+  /* --- 雪 --- */
+  if (S.scene==='outdoor' && S.phase<PH_BURN){
+    for (let i=0;i<S.snow.length;i++){
+      const s = S.snow[i];
+      s.d += dt*1.4;
+      s.y += s.s*dt;
+      s.x += Math.sin(s.d)*11*dt;
+      if (s.y > H+10){ s.y = -12; s.x = rnd(0,WORLD_W); }
+    }
+  }
+
+  checkPhase();
+  updateCamera(dt);
+  updateFireAudio();
+}
+
+function updateCamera(dt){
+  if (S.scene!=='outdoor') return;
+  const want = clamp(S.player.x - W*0.5, 0, Math.max(0, WORLD_W - W));
+  S.camX = lerp(S.camX, want, 1-Math.pow(0.0025, dt));
+}
+
+/* ============================================================
+   8. 渲染 —— 通用部件
+   ============================================================ */
+function drawPlayer(x, y, scale, opts){
+  opts = opts || {};
+  const p = S.player;
+  const walk = p.walk, chopping = p.chop>0;
+  const swing = chopping ? Math.sin((1-p.chop/0.30)*Math.PI) : 0;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  const f = p.face;
+
+  ctx.fillStyle = 'rgba(0,0,0,.30)';
+  ctx.beginPath(); ctx.ellipse(0, 2, 17, 5, 0, 0, 6.2832); ctx.fill();
+
+  const legA = Math.sin(walk)*7*(Math.abs(p.vx)>4?1:0);
+  ctx.strokeStyle = '#231a14'; ctx.lineWidth = 6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-3, -22); ctx.lineTo(-3+legA, 1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4, -22);  ctx.lineTo(4-legA, 1); ctx.stroke();
+
+  ctx.fillStyle = opts.body || '#3b2c22';
+  ctx.beginPath();
+  ctx.moveTo(-11,-46); ctx.lineTo(11,-46); ctx.lineTo(8,-20); ctx.lineTo(-8,-20);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = opts.scarf || '#c0432c';
+  ctx.fillRect(-9,-49,18,6);
+  ctx.beginPath();
+  ctx.moveTo(4,-45); ctx.lineTo(13,-38+Math.sin(walk*1.4)*3); ctx.lineTo(11,-30); ctx.lineTo(3,-40);
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = opts.skin || '#e8b98c';
+  ctx.beginPath(); ctx.arc(0,-57,9,0,6.2832); ctx.fill();
+  ctx.fillStyle = opts.hat || '#5d4037';
+  ctx.beginPath(); ctx.arc(0,-60,9.4,Math.PI*1.02,Math.PI*2.02); ctx.fill();
+  ctx.fillRect(-10,-62,20,4);
+  ctx.fillStyle = '#e9e4dc';
+  ctx.beginPath(); ctx.arc(0,-68.5,3.6,0,6.2832); ctx.fill();
+
+  ctx.save();
+  ctx.translate(f>0?8:-8, -44);
+  ctx.rotate(f>0 ? (-0.5 - swing*1.5) : (0.5 + swing*1.5));
+  ctx.strokeStyle = '#2c211a'; ctx.lineWidth = 5.4;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f>0?12:-12, 12); ctx.stroke();
+  ctx.strokeStyle = '#8a6a45'; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(f>0?12:-12,12); ctx.lineTo(f>0?20:-20, 24); ctx.stroke();
+  ctx.fillStyle = '#c9d2d8';
+  ctx.save(); ctx.translate(f>0?20:-20, 24); ctx.rotate(f>0?0.5:-0.5);
+  ctx.beginPath(); ctx.moveTo(-4,-8); ctx.lineTo(6,-6); ctx.lineTo(6,4); ctx.lineTo(-4,6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+/* ============================================================
+   9. 渲染 —— 室外
+   ============================================================ */
+function renderOutdoor(dt){
+  const camX = S.camX, gy = S.groundY;
+  const ff = S.phase>=PH_BURN ? S.forestFire : 0;
+
+  const sky = ctx.createLinearGradient(0,0,0,gy);
+  sky.addColorStop(0,   mixc([6,11,22],[28,6,3],ff));
+  sky.addColorStop(0.42,mixc([16,32,56],[96,24,6],ff));
+  sky.addColorStop(0.78,mixc([44,72,104],[186,70,14],ff));
+  sky.addColorStop(1,   mixc([74,104,132],[232,120,26],ff*0.9));
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,gy+2);
+
+  ctx.save();
+  ctx.globalAlpha = (1-ff)*0.95;
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i=0;i<S.stars.length;i++){
+    const s = S.stars[i];
+    const sx = s.x - camX*0.35;
+    if (sx<-10||sx>W+10) continue;
+    const tw = 0.62 + 0.38*Math.sin(S.t*1.8 + s.p);
+    ctx.fillStyle = 'rgba(210,232,255,'+(s.a*tw)+')';
+    ctx.beginPath(); ctx.arc(sx, s.y, s.r, 0, 6.2832); ctx.fill();
+  }
+  ctx.restore();
+
+  if (ff < 0.75){
+    const mx = W*0.78 - camX*0.06, my = H*0.15;
+    ctx.save();
+    ctx.globalAlpha = 1-ff/0.75;
+    const mg = ctx.createRadialGradient(mx,my,4,mx,my,74);
+    mg.addColorStop(0,'rgba(226,238,255,.60)');
+    mg.addColorStop(.28,'rgba(180,208,240,.16)');
+    mg.addColorStop(1,'rgba(180,208,240,0)');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx,my,74,0,6.2832); ctx.fill();
+    ctx.fillStyle = '#eaf1ff'; ctx.beginPath(); ctx.arc(mx,my,21,0,6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(196,214,240,.55)';
+    ctx.beginPath(); ctx.arc(mx-6,my-5,4.4,0,6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx+7,my+6,3.2,0,6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  const hillTint = [[26,42,64],[34,52,74],[42,62,84]];
+  for (let l=0;l<S.hills.length;l++){
+    const pts = S.hills[l];
+    const par = 0.10 + l*0.10;
+    ctx.fillStyle = mixc(hillTint[l], [86,26,10], ff*(0.7-l*0.16));
+    ctx.beginPath();
+    ctx.moveTo(-400, gy);
+    for (let i=0;i<pts.length;i++) ctx.lineTo(pts[i].x - camX*par, pts[i].y);
+    ctx.lineTo(WORLD_W+400, gy);
+    ctx.closePath(); ctx.fill();
+  }
+
+  const gg = ctx.createLinearGradient(0,gy,0,H);
+  gg.addColorStop(0, mixc([196,216,236],[255,150,60],ff*0.55));
+  gg.addColorStop(0.35,mixc([168,192,218],[210,104,36],ff*0.5));
+  gg.addColorStop(1, mixc([108,134,166],[126,54,22],ff*0.5));
+  ctx.fillStyle = gg;
+  ctx.fillRect(0,gy,W,H-gy);
+  ctx.fillStyle = 'rgba(255,255,255,'+(0.16*(1-ff))+')';
+  for (let i=0;i<14;i++){
+    const bx = ((i*263 - camX*0.55)%(W+400))-200;
+    ctx.beginPath(); ctx.ellipse(bx, gy+22+((i*37)%40), 78, 13, 0, 0, 6.2832); ctx.fill();
+  }
+
+  drawShopStall(camX, gy, ff);
+  drawHouse(camX, gy, ff);
+  for (let i=0;i<S.trees.length;i++) drawTree(S.trees[i], camX, gy, ff);
+
+  drawParts(S.parts, camX);
+
+  const p = S.player;
+  drawPlayer(p.x-camX, gy, 1, { body: p.hurt>0 ? '#2b3a4a' : '#3b2c22', scarf:'#c0432c' });
+
+  if (ff < 0.85){
+    ctx.save();
+    ctx.globalAlpha = (1-ff)*0.9;
+    for (let i=0;i<S.snow.length;i++){
+      const s = S.snow[i];
+      const raw = s.x - camX*0.9;
+      const px = ((raw%(W+80))+W+80)%(W+80)-40;
+      ctx.fillStyle = 'rgba(240,248,255,.78)';
+      ctx.beginPath(); ctx.arc(px, s.y, s.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (ff > 0.02){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const amb = ctx.createLinearGradient(0,gy-260,0,H);
+    amb.addColorStop(0,'rgba(255,90,20,0)');
+    amb.addColorStop(1,'rgba(255,110,30,'+(0.34*ff)+')');
+    ctx.fillStyle = amb; ctx.fillRect(0,gy-260,W,H-gy+260);
+    ctx.restore();
+  }
+}
+
+/* ---- 收购站（房子左侧） ---- */
+function drawShopStall(camX, gy, ff){
+  const x = SHOP_X - camX;
+  if (x < -260 || x > W+260) return;
+  const tint = ff>0 ? Math.min(1, ff*1.2) : 0;
+  const w = 150, h = 118;
+  const top = gy - h;
+
+  // 台子
+  ctx.fillStyle = mixc([84,60,40],[150,58,20],tint*0.85);
+  ctx.fillRect(x-w/2, top+h*0.52, w, 14);
+  ctx.fillStyle = mixc([56,40,26],[98,34,14],tint*0.85);
+  ctx.fillRect(x-w/2+8, top+h*0.52+14, 12, h*0.48-14);
+  ctx.fillRect(x+w/2-20, top+h*0.52+14, 12, h*0.48-14);
+
+  // 遮阳棚
+  ctx.fillStyle = mixc([122,44,34],[170,70,26],tint*0.6);
+  ctx.beginPath();
+  ctx.moveTo(x-w/2-16, top+h*0.30);
+  ctx.lineTo(x+w/2+16, top+h*0.30);
+  ctx.lineTo(x+w/2+6, top+h*0.42);
+  ctx.lineTo(x-w/2-6, top+h*0.42);
+  ctx.closePath(); ctx.fill();
+  for (let i=0;i<5;i++){
+    ctx.fillStyle = i%2 ? 'rgba(240,225,200,.85)' : 'rgba(150,52,36,.9)';
+    const seg = (w+32)/5;
+    ctx.beginPath();
+    ctx.moveTo(x-w/2-16+i*seg, top+h*0.30);
+    ctx.lineTo(x-w/2-16+(i+1)*seg, top+h*0.30);
+    ctx.lineTo(x-w/2-6+(i+1)*seg, top+h*0.42);
+    ctx.lineTo(x-w/2-6+i*seg, top+h*0.42);
+    ctx.closePath(); ctx.fill();
+  }
+  // 立柱
+  ctx.fillStyle = mixc([70,52,34],[120,44,16],tint*0.8);
+  ctx.fillRect(x-w/2-12, top+h*0.30, 8, h*0.70);
+  ctx.fillRect(x+w/2+4, top+h*0.30, 8, h*0.70);
+
+  // 挂在棚下的斧头与靴子（货）
+  ctx.save();
+  ctx.translate(x-w*0.26, top+h*0.36);
+  ctx.strokeStyle = '#8a6a45'; ctx.lineWidth = 4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,18); ctx.lineTo(0,-12); ctx.stroke();
+  ctx.fillStyle = '#c9d2d8';
+  ctx.beginPath(); ctx.moveTo(-3,-19); ctx.lineTo(12,-15); ctx.lineTo(12,-2); ctx.lineTo(-3,-6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#5c4838';
+  ctx.beginPath(); ctx.roundRect(x-w*0.02, top+h*0.34, 12, 26, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x-w*0.02-4, top+h*0.34+21, 20, 9, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x-w*0.02+20, top+h*0.34, 12, 26, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(x-w*0.02+16, top+h*0.34+21, 20, 9, 4); ctx.fill();
+
+  // 木料垛（装饰）
+  for (let i=0;i<5;i++){
+    const row = Math.floor(i/3), col = i%3;
+    ctx.save();
+    ctx.translate(x+w*0.24 + col*9 - row*6, top+h*0.50 - row*10);
+    ctx.rotate(0.36);
+    ctx.fillStyle = '#6b4d31';
+    ctx.beginPath(); ctx.roundRect(-16,-5,32,10,4); ctx.fill();
+    ctx.fillStyle = '#8a6941';
+    ctx.beginPath(); ctx.arc(16,0,5,0,6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  // 招牌
+  ctx.fillStyle = 'rgba(22,14,8,.88)';
+  ctx.beginPath(); ctx.roundRect(x-66, top+h*0.06, 132, 26, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,205,130,.96)';
+  ctx.font = '15px ' + FONT_S;
+  ctx.textAlign = 'center';
+  ctx.fillText('木料收购站', x, top+h*0.06+19);
+  ctx.textAlign = 'left';
+
+  // 示位环
+  if (Math.abs(S.player.x - SHOP_X) < REACH_SHOP){
+    ctx.save();
+    ctx.globalAlpha = 0.26 + 0.20*Math.sin(S.t*4);
+    ctx.strokeStyle = '#ffd479'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, gy-4, REACH_SHOP, 15, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawHouse(camX, gy, ff){
+  const x = HOUSE_L - camX;
+  if (x > W+140 || x+HOUSE_W < -140) return;
+  const w = HOUSE_W, h = H*0.30;
+  const top = gy - h;
+  const wallTint = ff>0 ? Math.min(1, ff*1.2) : 0;
+
+  const wallG = ctx.createLinearGradient(x,top,x,gy);
+  wallG.addColorStop(0, mixc([92,64,44],[174,58,14],wallTint));
+  wallG.addColorStop(1, mixc([58,40,28],[110,32,8],wallTint));
+  ctx.fillStyle = wallG;
+  ctx.fillRect(x, top, w, h);
+  ctx.strokeStyle = 'rgba(0,0,0,.22)'; ctx.lineWidth = 1;
+  for (let i=0;i<9;i++){
+    const yy = top + (i+0.5)*(h/9);
+    ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x+w, yy); ctx.stroke();
+  }
+  ctx.fillStyle = mixc([52,44,40],[92,34,16],wallTint*0.8);
+  ctx.beginPath();
+  ctx.moveTo(x-26, top+8); ctx.lineTo(x+w/2, top-h*0.42); ctx.lineTo(x+w+26, top+8);
+  ctx.closePath(); ctx.fill();
+  if (ff < 0.7){
+    ctx.fillStyle = 'rgba(232,242,255,'+(0.9*(1-ff/0.7))+')';
+    ctx.beginPath();
+    ctx.moveTo(x-26, top+8); ctx.lineTo(x+w/2, top-h*0.42);
+    ctx.lineTo(x+w/2+16, top-h*0.42+14); ctx.lineTo(x+w/2-4, top-h*0.30);
+    ctx.lineTo(x+w+20, top+9); ctx.lineTo(x+w+26, top+8);
+    ctx.lineTo(x+w+8, top-2); ctx.lineTo(x+2, top-2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = mixc([48,32,22],[86,26,8],wallTint);
+  ctx.fillRect(x+w*0.5-30, gy-h*0.58, 60, h*0.58);
+  ctx.fillStyle = 'rgba(255,190,110,.9)';
+  ctx.beginPath(); ctx.arc(x+w*0.5+18, gy-h*0.30, 3.4, 0, 6.2832); ctx.fill();
+  if (S.phase<PH_BURN && Math.abs(S.player.x - DOOR_X) < REACH_DOOR){
+    ctx.save();
+    ctx.globalAlpha = 0.26 + 0.20*Math.sin(S.t*4);
+    ctx.strokeStyle = '#ffd479'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x+w*0.5, gy-4, REACH_DOOR, 15, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  }
+
+  const fire = clamp(S.fuel/900, 0, 1);
+  const glow = clamp(clamp(S.totalWood*0.02,0,1)*0.55 + fire*0.75, 0, 1);
+  const wx = x+42, wy = top+h*0.24, ww = 62, wh = 52;
+  ctx.fillStyle = 'rgba(255,180,80,'+(0.14+glow*0.86)+')';
+  ctx.fillRect(wx, wy, ww, wh);
+  ctx.strokeStyle = mixc([70,52,36],[130,50,18],wallTint); ctx.lineWidth = 4;
+  ctx.strokeRect(wx, wy, ww, wh);
+  ctx.beginPath(); ctx.moveTo(wx+ww/2, wy); ctx.lineTo(wx+ww/2, wy+wh); ctx.stroke();
+  if (glow > 0.1){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const g2 = ctx.createRadialGradient(wx+ww/2,wy+wh/2,4,wx+ww/2,wy+wh/2,150);
+    g2.addColorStop(0,'rgba(255,170,70,'+(0.30*glow)+')');
+    g2.addColorStop(1,'rgba(255,140,40,0)');
+    ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(wx+ww/2,wy+wh/2,150,0,6.2832); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = mixc([60,48,42],[110,42,18],wallTint);
+  ctx.fillRect(x+w-58, top-h*0.42, 26, h*0.30);
+  if (S.totalWood>0 && Math.random() < 0.5){
+    emit('smoke', x+w-45, top-h*0.46, {n:1, r:rnd(9,17), vy:-30, life:rnd(2,3.6), alpha:1});
+  }
+  if (S.phase>=3 && Math.random()<0.4){
+    emit('fire', x+w*0.5+rnd(-40,40), gy-h*0.5, {n:1, spread:14, vx:20, vy:-130, life:rnd(.5,1), r:rnd(6,15)});
+  }
+  if (S.phase>=4){
+    for (let i=0;i<2;i++)
+      emit('fire', x+rnd(0,w), top+rnd(0,h), {n:1, spread:14, vx:24, vy:-170, life:rnd(.5,1.1), r:rnd(8,20)});
+  }
+}
+
+function drawTree(t, camX, gy, ff){
+  const x = t.x - camX;
+  if (x < -160 || x > W+160) return;
+  const sway = Math.sin(S.t*1.1 + t.seed)*1.6;
+  const shakeX = t.shake>0 ? Math.sin(S.t*52)*t.shake*11 : 0;
+  const base = gy + 4;
+  ctx.save();
+  ctx.translate(x+shakeX, base);
+  ctx.rotate(sway*0.0022 + (t.burn>0.4 ? (t.burn-0.4)*0.05 : 0));
+
+  const burned = t.burn;
+  const trunkC = mixc([62,44,30],[52,26,16],burned);
+
+  if (t.stump>0){
+    const sc = clamp(1 - t.stump/9, 0.25, 1);
+    ctx.save(); ctx.scale(1, sc);
+    ctx.fillStyle = trunkC;
+    ctx.fillRect(-9, -34, 18, 34);
+    ctx.fillStyle = mixc([128,102,72],[70,36,20],burned);
+    ctx.beginPath(); ctx.ellipse(0,-34,9,4,0,0,6.2832); ctx.fill();
+    if (burned>0.1){
+      ctx.fillStyle = 'rgba(255,110,30,'+(burned*0.35)+')';
+      ctx.beginPath(); ctx.ellipse(0,-34,11,5,0,0,6.2832); ctx.fill();
+    }
+    ctx.restore();
+    ctx.restore();
+    return;
+  }
+
+  const shape = t.zone.shape || 0;
+  ctx.fillStyle = trunkC;
+  if (shape === 3){
+    // 老林：分叉的双干
+    ctx.beginPath();
+    ctx.moveTo(-12, 0); ctx.lineTo(-8, -t.h*0.40);
+    ctx.lineTo(-2, -t.h*0.40); ctx.lineTo(-4, 0);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(3, 0); ctx.lineTo(2, -t.h*0.52);
+    ctx.lineTo(9, -t.h*0.52); ctx.lineTo(12, 0);
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-9, 0); ctx.lineTo(-6, -t.h*0.55);
+    ctx.lineTo(6, -t.h*0.55); ctx.lineTo(9, 0);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // 树冠轮廓按林带换形状
+  function canopyPath(cw, cy, ch){
+    ctx.beginPath();
+    if (shape === 1){
+      // 圆冠：侧边外凸
+      ctx.moveTo(0, cy-ch);
+      ctx.quadraticCurveTo(cw*0.66, cy-ch*0.32, cw*0.50, cy);
+      ctx.lineTo(-cw*0.50, cy);
+      ctx.quadraticCurveTo(-cw*0.66, cy-ch*0.32, 0, cy-ch);
+    } else if (shape === 2){
+      // 宽冠：底边更张开
+      ctx.moveTo(0, cy-ch*0.92);
+      ctx.lineTo(cw*0.64, cy);
+      ctx.lineTo(-cw*0.64, cy);
+    } else if (shape === 4){
+      // 伞形：顶平，两侧下垂
+      ctx.moveTo(-cw*0.20, cy-ch);
+      ctx.lineTo(cw*0.20, cy-ch);
+      ctx.quadraticCurveTo(cw*0.62, cy-ch*0.46, cw*0.54, cy);
+      ctx.lineTo(-cw*0.54, cy);
+      ctx.quadraticCurveTo(-cw*0.62, cy-ch*0.46, -cw*0.20, cy-ch);
+    } else if (shape === 5){
+      // 塔形：更窄更尖
+      ctx.moveTo(0, cy-ch*1.18);
+      ctx.lineTo(cw*0.33, cy);
+      ctx.lineTo(-cw*0.33, cy);
+    } else {
+      // 尖松 / 双干共用标准三角
+      ctx.moveTo(0, cy-ch);
+      ctx.lineTo(cw*0.50, cy);
+      ctx.lineTo(-cw*0.50, cy);
+    }
+    ctx.closePath();
+  }
+
+  // 树冠：越深的林子越高、层数越多、越浑厚
+  const zi = TREE_ZONES.indexOf(t.zone);
+  const layers = t.zone.layers;
+  const damaged = 1 - t.hp/t.maxHp;
+  const pal = t.zone.pal;
+  for (let i=0;i<layers;i++){
+    const k = i/layers;
+    const cw = t.w*(0.52 + k*0.30)*(1 + zi*0.06) * (1 - damaged*0.18*(1-k));
+    const cy = -t.h*(0.28 + k*0.23);
+    const ch = t.h*0.42*(1-k*0.10);
+    // 越靠上的树冠越受光：之前给最底层 i===0 加亮，等于树冠底部比顶部亮，是反的
+    const lift = layers > 1 ? i/(layers-1) : 0;
+    const col = mixc(
+      [pal[0] + lift*14, pal[1] + lift*20, pal[2] + lift*11],
+      [255,96,20], clamp(burned*1.5 - k*0.25, 0, 1)
+    );
+    ctx.fillStyle = col;
+    canopyPath(cw, cy, ch);
+    ctx.fill();
+
+    if (ff<0.8 && !burned){
+      // 顶部积雪：同形状的一小块，顶点与树冠对齐、底边落在上半截，
+      // 这样才是一顶雪帽。之前用 ctx.scale 压扁整个树冠，缩放以原点为中心，
+      // 白块会落在树冠正中间，看起来「中间白、外圈绿」。
+      const snowH = ch * 0.52;
+      canopyPath(cw*0.56, cy - (ch - snowH), snowH);
+      ctx.fillStyle = 'rgba(236,246,255,'+(0.80*(1-ff/0.8))+')';
+      ctx.fill();
+    }
+    if (burned>0.15){
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const g = ctx.createRadialGradient(0, cy-ch*0.35, 2, 0, cy-ch*0.35, cw*0.9);
+      g.addColorStop(0,'rgba(255,170,60,'+(0.42*burned)+')');
+      g.addColorStop(1,'rgba(255,90,20,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(0, cy-ch*0.35, cw*0.9, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // 各林带的辨识特征：越深越有压迫感
+  if (zi >= 3 && burned < 0.5){
+    // 老林起：树干上的老裂纹
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.6;
+    for (let i=0;i<3;i++){
+      const bx = -4 + i*4;
+      ctx.beginPath();
+      ctx.moveTo(bx, -t.h*0.06);
+      ctx.lineTo(bx + (i%2 ? 2 : -2), -t.h*0.44);
+      ctx.stroke();
+    }
+  }
+  if (zi >= 4 && burned < 0.4){
+    // 雾林起：树冠外罩一层冷雾光
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const halo = ctx.createRadialGradient(0, -t.h*0.62, 6, 0, -t.h*0.62, t.w*1.35);
+    halo.addColorStop(0, 'rgba(150,180,220,'+(0.10 + (zi-4)*0.06)+')');
+    halo.addColorStop(1, 'rgba(120,150,200,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(0, -t.h*0.62, t.w*1.35, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+  if (zi === 5 && burned < 0.4){
+    // 黑林：冷紫描边，远远就能认出来
+    ctx.strokeStyle = 'rgba(130,120,200,.40)'; ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-t.w*0.30, -t.h*0.26);
+    ctx.lineTo(0, -t.h*0.92);
+    ctx.lineTo(t.w*0.30, -t.h*0.26);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 树上还剩多少料：按血条方向显示（满 -> 空）
+  const p = S.player;
+  if (S.scene==='outdoor' && Math.abs(t.x-60-p.x) < 130 && t.pending > 0){
+    const hw = 44, hh = 5;
+    const bx = x-hw/2, by = base - t.h - 28;
+    const left = clamp((t.stock - t.pending)/t.stock, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.5)';
+    ctx.fillRect(bx, by, hw, hh);
+    ctx.fillStyle = left > 0.35 ? '#8fd08a' : '#e0b070';
+    ctx.fillRect(bx, by, hw*left, hh);
+    ctx.fillStyle = 'rgba(255,255,255,.30)';
+    ctx.fillRect(bx, by, hw*left, 1);
+  }
+}
+
+/* ============================================================
+   10. 渲染 —— 室内
+   ============================================================ */
+function renderIndoor(dt){
+  const gy = S.groundY;
+  const heat = clamp((S.inTemp+20)/400, 0, 1);
+  const fire = clamp(S.fuel/900, 0, 1.5);
+  const flick = 0.86 + 0.14*Math.sin(S.t*17) + 0.06*Math.sin(S.t*31);
+
+  const wg = ctx.createLinearGradient(0,0,0,gy);
+  wg.addColorStop(0, mixc([46,34,26],[92,26,12],heat));
+  wg.addColorStop(1, mixc([66,50,38],[126,40,16],heat));
+  ctx.fillStyle = wg;
+  ctx.fillRect(0,0,W,gy);
+
+  ctx.strokeStyle = 'rgba(0,0,0,.20)'; ctx.lineWidth = 2;
+  for (let x=0;x<W;x+=46){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,gy); ctx.stroke();
+  }
+  if (heat>0.35){
+    ctx.save();
+    ctx.globalAlpha = (heat-0.35)*1.4;
+    for (let i=0;i<10;i++){
+      const bx = ((i*197)%W);
+      ctx.fillStyle = 'rgba(24,14,10,.7)';
+      ctx.beginPath();
+      ctx.ellipse(bx, gy*0.30+((i*83)%(gy*0.5)), 40+(i%3)*26, 62, 0.2, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  const fg = ctx.createLinearGradient(0,gy,0,H);
+  fg.addColorStop(0, mixc([78,58,40],[140,52,20],heat));
+  fg.addColorStop(1, mixc([46,34,24],[86,30,12],heat));
+  ctx.fillStyle = fg;
+  ctx.fillRect(0,gy,W,H-gy);
+  ctx.strokeStyle = 'rgba(0,0,0,.26)'; ctx.lineWidth = 2;
+  for (let i=1;i<7;i++){
+    const y = gy + Math.pow(i/7, 1.5)*(H-gy);
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+  for (let x=0;x<W;x+=110){
+    ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x-60,H); ctx.stroke();
+  }
+
+  drawWindow(gy, heat);
+  drawDoor(doorIndoorX(), gy, heat);
+  drawWoodPile(W*0.26, gy);
+  const fx = furnaceX();
+  drawFireplace(fx, gy, fire*flick, heat);
+  drawThermo(W*0.055, H*0.16);
+
+  if (S.phase >= 4){
+    if (Math.random() < 0.85)
+      emit('fire', rnd(0,W), rnd(H*0.04, gy), {n:1, spread:24, vx:26, vy:-180, life:rnd(.5,1.2), r:rnd(8,21)});
+    if (Math.random() < 0.30)
+      emit('fire', rnd(0,W), H*0.06, {n:1, spread:60, vx:14, vy:60, life:rnd(.7,1.4), r:rnd(10,20)});
+    if (Math.random() < 0.16)
+      emit('ash', rnd(0,W), rnd(0,gy*0.5), {n:1, spread:30, vx:40, vy:-60, life:rnd(2,3.6), hue:55});
+  }
+
+  drawParts(S.parts, 0);
+
+  drawPlayer(S.player.x, gy, 1, { body: heat>0.5 ? '#4a3226' : '#3b2c22', scarf:'#c0432c' });
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const lx = fx, ly = gy-60;
+  const rad = 240 + fire*520;
+  const lg = ctx.createRadialGradient(lx,ly,10,lx,ly,rad);
+  lg.addColorStop(0,'rgba(255,170,70,'+(0.30+fire*0.32)+')');
+  lg.addColorStop(0.45,'rgba(255,120,30,'+(0.12+fire*0.18)+')');
+  lg.addColorStop(1,'rgba(255,80,20,0)');
+  ctx.fillStyle = lg;
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+}
+
+function drawWindow(gy, heat){
+  const wx = W*0.40, wy = H*0.20, ww = W*0.20, wh = H*0.24;
+  ctx.fillStyle = '#050810';
+  ctx.fillRect(wx,wy,ww,wh);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(wx,wy,ww,wh); ctx.clip();
+  const sk = ctx.createLinearGradient(0,wy,0,wy+wh);
+  if (S.phase>=PH_BURN){
+    sk.addColorStop(0,'#3a0d04'); sk.addColorStop(0.6,'#c0440c'); sk.addColorStop(1,'#ffa23a');
+  } else {
+    sk.addColorStop(0,'#0a1424');
+    sk.addColorStop(1,'#1d3350');
+  }
+  ctx.fillStyle = sk; ctx.fillRect(wx,wy,ww,wh);
+  ctx.fillStyle = S.phase>=PH_BURN ? 'rgba(255,140,40,.55)' : 'rgba(10,26,40,.9)';
+  for (let i=0;i<5;i++){
+    const tx = wx + (i+0.5)*(ww/5) + Math.sin(S.t*0.8+i)*2;
+    ctx.beginPath();
+    ctx.moveTo(tx, wy+wh*0.78);
+    ctx.lineTo(tx+ww*0.075, wy+wh*0.30);
+    ctx.lineTo(tx-ww*0.075, wy+wh*0.30);
+    ctx.closePath(); ctx.fill();
+  }
+  if (S.phase<PH_BURN){
+    for (let i=0;i<S.snow.length;i++){
+      const s = S.snow[i];
+      const px = wx + ((s.x*0.6)%ww), py = wy + ((s.y + s.s*S.t*0.6)%wh);
+      ctx.fillStyle = 'rgba(226,240,255,.7)';
+      ctx.beginPath(); ctx.arc(px,py,s.r*0.7,0,6.2832); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#3a2a1c'; ctx.lineWidth = 8;
+  ctx.strokeRect(wx,wy,ww,wh);
+  ctx.beginPath();
+  ctx.moveTo(wx+ww/2, wy); ctx.lineTo(wx+ww/2, wy+wh);
+  ctx.moveTo(wx, wy+wh/2); ctx.lineTo(wx+ww, wy+wh/2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.045)';
+  ctx.beginPath();
+  ctx.moveTo(wx,wy+wh); ctx.lineTo(wx+ww*0.55,wy); ctx.lineTo(wx+ww*0.8,wy);
+  ctx.lineTo(wx+ww*0.25,wy+wh); ctx.closePath(); ctx.fill();
+}
+
+function drawDoor(x, gy, heat){
+  const w = 88, h = H*0.30, top = gy-h;
+  ctx.fillStyle = mixc([58,44,32],[96,38,16],heat*0.8);
+  ctx.fillRect(x-w/2-7, top-7, w+14, h+7);
+  const dg = ctx.createLinearGradient(x-w/2, top, x+w/2, top);
+  dg.addColorStop(0, mixc([74,54,36],[124,46,18],heat*0.8));
+  dg.addColorStop(1, mixc([52,38,26],[92,34,14],heat*0.8));
+  ctx.fillStyle = dg;
+  ctx.fillRect(x-w/2, top, w, h);
+  ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 2;
+  for (let i=1;i<3;i++){
+    ctx.beginPath(); ctx.moveTo(x-w/2+i*(w/3), top); ctx.lineTo(x-w/2+i*(w/3), gy); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(x-w/2, top+h*0.42); ctx.lineTo(x+w/2, top+h*0.42); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-w/2, top+h*0.78); ctx.lineTo(x+w/2, top+h*0.78); ctx.stroke();
+  ctx.fillStyle = '#d8b25e';
+  ctx.beginPath(); ctx.arc(x+w*0.30, top+h*0.52, 4.4, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = S.phase>=PH_BURN ? 'rgba(255,140,40,.7)' : 'rgba(150,200,240,.28)';
+  ctx.fillRect(x-w/2-3, top, 3, h);
+  if (S.phase<PH_BURN){
+    ctx.fillStyle = 'rgba(220,238,255,.5)';
+    ctx.beginPath(); ctx.ellipse(x-w*0.24, top+h*0.18, 16, 7, 0.3, 0, 6.2832); ctx.fill();
+  }
+  const p = S.player;
+  if (S.phase<PH_BURN && Math.abs(p.x-x) < REACH_DOOR){
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.25*Math.sin(S.t*4);
+    ctx.strokeStyle = '#ffd479'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, top+h*0.5, w*0.85, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// 柴堆：数量严格反映手里还有多少木料，0 就是空
+function drawWoodPile(x, gy){
+  const n = Math.min(28, S.wood);
+  ctx.save();
+  if (n === 0){
+    // 空位：只剩地上的印子和几根碎屑
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(x, gy+5, 52, 9, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(120,92,60,.45)';
+    for (let i=0;i<5;i++) ctx.fillRect(x-30+i*14, gy-2+((i*7)%5), 9, 3);
+    ctx.restore();
+    return;
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(x, gy+6, 62, 10, 0, 0, 6.2832); ctx.fill();
+
+  // 金字塔码放，7 层正好放下 28 根
+  let placed = 0, row = 0;
+  while (placed < n){
+    const inRow = Math.min(n - placed, 7 - row);
+    if (inRow <= 0) break;
+    for (let i=0;i<inRow;i++){
+      const px = x - (inRow-1)*18/2 + i*18 + row*3;
+      const py = gy - 6 - row*12;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(-0.16 + row*0.07);
+      ctx.fillStyle = '#6b4d31';
+      ctx.beginPath(); ctx.roundRect(-19,-6,38,12,5); ctx.fill();
+      ctx.fillStyle = '#8a6941';
+      ctx.beginPath(); ctx.arc(19,0,6,0,6.2832); ctx.fill();
+      ctx.fillStyle = '#5c8558';
+      ctx.beginPath(); ctx.arc(19,0,2.6,0,6.2832); ctx.fill();
+      ctx.restore();
+    }
+    placed += inRow;
+    row++;
+    if (row > 6) break;
+  }
+  ctx.restore();
+}
+
+function drawFireplace(x, gy, power, heat){
+  const w = Math.min(190, W*0.16), h = H*0.24;
+  const top = gy-h;
+  const sg = ctx.createLinearGradient(0,top,0,gy);
+  sg.addColorStop(0, mixc([96,88,82],[132,72,50],heat*0.7));
+  sg.addColorStop(1, mixc([62,56,52],[86,42,28],heat*0.7));
+  ctx.fillStyle = sg;
+  ctx.beginPath();
+  ctx.moveTo(x-w*0.62, gy);
+  ctx.lineTo(x-w*0.62, top+h*0.30);
+  ctx.lineTo(x-w*0.40, top);
+  ctx.lineTo(x+w*0.40, top);
+  ctx.lineTo(x+w*0.62, top+h*0.30);
+  ctx.lineTo(x+w*0.62, gy);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.30)'; ctx.lineWidth = 2;
+  for (let i=1;i<5;i++){
+    const y = top + i*(h/5);
+    ctx.beginPath(); ctx.moveTo(x-w*0.62, y); ctx.lineTo(x+w*0.62, y); ctx.stroke();
+  }
+  const ow = w*0.62, oh = h*0.52;
+  const ox = x-ow/2, oy = gy-oh;
+  ctx.fillStyle = '#0d0705';
+  ctx.beginPath();
+  ctx.moveTo(ox, gy); ctx.lineTo(ox, oy+ow*0.30);
+  ctx.quadraticCurveTo(x, oy-ow*0.18, ox+ow, oy+ow*0.30);
+  ctx.lineTo(ox+ow, gy);
+  ctx.closePath(); ctx.fill();
+
+  if (power > 0.02){
+    ctx.save();
+    ctx.translate(x, gy-6);
+    ctx.strokeStyle = '#4a3320'; ctx.lineWidth = 7; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(22,-8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-16,-9); ctx.lineTo(24,2); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    for (let i=0;i<16;i++){
+      const ph = (S.t*1.7 + i*0.61)%1;
+      const bx = x + Math.sin(S.t*2.2+i*1.3)*(10+i*0.7)*Math.min(power,1.5);
+      const by = gy - 12 - ph*(58+Math.min(power,1.5)*72);
+      const rr = (20 - ph*11)*(0.55+Math.min(power,1.5)*0.9);
+      const hue = 44 - ph*26;
+      const g = ctx.createRadialGradient(bx,by,0,bx,by,Math.max(2,rr));
+      g.addColorStop(0,'hsla('+hue+',100%,'+(76-ph*22)+'%,'+(0.55*Math.min(1,power))+')');
+      g.addColorStop(0.5,'hsla('+(hue-8)+',100%,56%,'+(0.22*Math.min(1,power))+')');
+      g.addColorStop(1,'hsla('+(hue-14)+',100%,44%,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(bx,by,Math.max(2,rr),0,6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.strokeStyle='rgba(30,24,20,.9)'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(ox+6, gy-oh*0.34); ctx.lineTo(ox+ow-6, gy-oh*0.34); ctx.stroke();
+  ctx.fillStyle = mixc([74,66,60],[110,54,34],heat*0.7);
+  ctx.fillRect(x-w*0.70, top-9, w*1.40, 11);
+  ctx.fillStyle='#8d7a5e';
+  ctx.beginPath(); ctx.ellipse(x-w*0.42, top-14, 11, 6, 0,0,6.2832); ctx.fill();
+
+  const p = S.player;
+  if (S.phase<PH_BURN && Math.abs(p.x-x) < REACH_FIRE){
+    ctx.save();
+    ctx.globalAlpha = 0.28 + 0.20*Math.sin(S.t*4);
+    ctx.strokeStyle = S.wood>0 ? '#ffd479' : 'rgba(180,170,150,.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, gy-4, REACH_FIRE, 15, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawThermo(x, y){
+  const h = H*0.34, w = 16;
+  const ratio = clamp(Math.sqrt(clamp((S.inTemp+20)/380,0,1)), 0, 1);
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,16,14,.9)';
+  ctx.beginPath(); ctx.roundRect(x-w/2-4, y-6, w+8, h+12, 12); ctx.fill();
+  ctx.fillStyle = '#12100f';
+  ctx.beginPath(); ctx.roundRect(x-w/2, y, w, h, w/2); ctx.fill();
+  const mh = h*ratio;
+  const hue = lerp(196, 18, ratio);
+  const mg = ctx.createLinearGradient(0, y+h-mh, 0, y+h);
+  mg.addColorStop(0, 'hsl('+hue+',95%,72%)');
+  mg.addColorStop(1, 'hsl('+hue+',95%,52%)');
+  ctx.fillStyle = mg;
+  ctx.beginPath(); ctx.roundRect(x-w/2+3, y+h-mh, w-6, Math.max(6,mh), (w-6)/2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y+h+2, w*0.78, 0, 6.2832); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1.4;
+  for (let i=0;i<=8;i++){
+    const ty = y + h - (i/8)*h;
+    ctx.beginPath(); ctx.moveTo(x+w/2+2, ty); ctx.lineTo(x+w/2+(i%2?6:11), ty); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ============================================================
+   11. 渲染 —— 西安
+   ============================================================ */
+function renderXian(dt){
+  const heat = clamp((S.xianTemp-15)/45, 0, 1);
+  const gy = H*0.86;
+
+  const sk = ctx.createLinearGradient(0,0,0,gy);
+  sk.addColorStop(0,   mixc([16,10,26],[120,26,4],heat));
+  sk.addColorStop(0.40,mixc([44,22,40],[206,72,10],heat));
+  sk.addColorStop(0.72,mixc([86,44,52],[246,140,30],heat));
+  sk.addColorStop(1,   mixc([126,86,74],[255,196,80],heat));
+  ctx.fillStyle = sk; ctx.fillRect(0,0,W,gy);
+
+  const sx = W*0.72, sy = H*(0.30 - heat*0.14);
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  const sg = ctx.createRadialGradient(sx,sy,6,sx,sy,120+heat*260);
+  sg.addColorStop(0,'rgba(255,244,206,'+(0.72+heat*0.28)+')');
+  sg.addColorStop(0.22,'rgba(255,180,70,'+(0.34+heat*0.30)+')');
+  sg.addColorStop(1,'rgba(255,110,20,0)');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,120+heat*260,0,6.2832); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle = 'rgba(255,180,90,'+(0.05+heat*0.09)+')';
+  ctx.lineWidth = 2;
+  for (let i=0;i<16;i++){
+    const baseY = H*0.62 + i*16;
+    ctx.beginPath();
+    for (let px=0; px<=W; px+=14){
+      const yy = baseY + Math.sin(px*0.017 + S.t*2.1 + i*0.7)*(3+heat*9);
+      if (px===0) ctx.moveTo(px,yy); else ctx.lineTo(px,yy);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  for (let ti=0; ti<S.towers.length; ti++){
+    const t = S.towers[ti];
+    const th = t.h*(1 + heat*0.06);
+    const top = gy - th;
+    ctx.fillStyle = mixc([16,14,22],[58,20,10],heat*0.85);
+    ctx.fillRect(t.x, top, t.w, th);
+    for (let wi=0; wi<t.win.length; wi++){
+      const win = t.win[wi];
+      const wy = top + win.y;
+      if (wy > gy-10) continue;
+      const flick = ((win.x*7 + win.y*13 + Math.floor(S.t*1.6)) % 17);
+      if (flick < 2) ctx.fillStyle = 'rgba(255,226,150,.75)';
+      else ctx.fillStyle = (heat>0.5 && ((win.x+win.y)%5===0))
+        ? 'rgba(255,120,40,'+(0.35+heat*0.5)+')'
+        : 'rgba(255,196,110,'+(0.30+heat*0.4)+')';
+      ctx.fillRect(t.x+win.x, wy, 6, 9);
+    }
+    if (heat>0.25){
+      ctx.fillStyle = 'rgba(255,110,30,'+((heat-0.25)*0.55)+')';
+      ctx.fillRect(t.x, top, t.w, 4);
+    }
+  }
+
+  const zx = W*0.30, zw = 74, zh = H*0.20;
+  ctx.fillStyle = mixc([14,12,20],[66,24,10],heat*0.85);
+  ctx.beginPath();
+  ctx.moveTo(zx-zw/2, gy);
+  ctx.lineTo(zx-zw/2, gy-zh*0.62);
+  ctx.lineTo(zx-zw*0.66, gy-zh*0.62);
+  ctx.lineTo(zx, gy-zh);
+  ctx.lineTo(zx+zw*0.66, gy-zh*0.62);
+  ctx.lineTo(zx+zw/2, gy-zh*0.62);
+  ctx.lineTo(zx+zw/2, gy);
+  ctx.closePath(); ctx.fill();
+
+  const gg = ctx.createLinearGradient(0,gy,0,H);
+  gg.addColorStop(0, mixc([40,34,38],[150,72,26],heat));
+  gg.addColorStop(1, mixc([20,18,22],[80,34,12],heat));
+  ctx.fillStyle = gg; ctx.fillRect(0,gy,W,H-gy);
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for (let i=0;i<9;i++){
+    const bx = ((i*233)%W);
+    ctx.strokeStyle = 'rgba(255,130,40,'+(0.10+heat*0.35)+')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx, gy); ctx.lineTo(bx+40, H); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.textAlign='center';
+  ctx.fillStyle = 'rgba(10,6,4,.55)';
+  ctx.beginPath(); ctx.roundRect(W*0.5-190, H*0.06, 380, 118, 14); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(W*0.5-190, H*0.06, 380, 118, 14); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,205,140,.72)';
+  ctx.font = '13px '+FONT_S;
+  ctx.fillText('西 安 市 气 温', W*0.5, H*0.06+30);
+  const col = mixc([255,190,110],[255,72,20], heat);
+  ctx.fillStyle = col;
+  ctx.font = '600 54px '+FONT_N;
+  ctx.fillText(S.xianTemp.toFixed(1)+'°C', W*0.5, H*0.06+88);
+  ctx.fillStyle='rgba(255,255,255,.14)';
+  ctx.fillRect(W*0.5-150, H*0.06+102, 300, 5);
+  ctx.fillStyle = col;
+  ctx.fillRect(W*0.5-150, H*0.06+102, 300*clamp((S.xianTemp-15)/(THRESH.xian-15),0,1), 5);
+  ctx.restore();
+
+  const fx2 = W*0.5, fy2 = H*0.90;
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  ctx.beginPath(); ctx.ellipse(fx2,fy2+4,44,10,0,0,6.2832); ctx.fill();
+  ctx.strokeStyle='#4a3320'; ctx.lineWidth=8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(fx2-26,fy2); ctx.lineTo(fx2+22,fy2-8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(fx2-16,fy2-9); ctx.lineTo(fx2+24,fy2+2); ctx.stroke();
+  drawPlayer(fx2-118, fy2+6, 1, { body:'#3b2c22', scarf:'#c0432c' });
+  drawParts(S.parts, 0);
+
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  const hg = ctx.createLinearGradient(0,0,0,H);
+  hg.addColorStop(0,'rgba(255,90,20,'+(0.05+heat*0.14)+')');
+  hg.addColorStop(1,'rgba(255,60,10,'+(0.10+heat*0.18)+')');
+  ctx.fillStyle=hg; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+}
+
+/* ============================================================
+   12. 渲染 —— 主
+   ============================================================ */
+function render(dt){
+  ctx.save();
+  if (S.shake > 0.2){
+    ctx.translate(rnd(-1,1)*S.shake*0.4, rnd(-1,1)*S.shake*0.4);
+  }
+
+  if (S.scene==='outdoor')      renderOutdoor(dt);
+  else if (S.scene==='indoor')  renderIndoor(dt);
+  else                          renderXian(dt);
+
+  ctx.restore();
+
+  ctx.save();
+  const vg = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.34,W/2,H/2,Math.max(W,H)*0.78);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,.62)');
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+
+  // 体温告警：室外越冷，屏幕越像结了一层霜
+  if (S.scene==='outdoor' && S.phase<PH_BURN && S.cold > 12){
+    const a = clamp((S.cold-12)/88, 0, 1);
+    ctx.save();
+    const cg = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.16,W/2,H/2,Math.max(W,H)*0.72);
+    cg.addColorStop(0,'rgba(120,190,255,0)');
+    cg.addColorStop(0.55,'rgba(110,180,255,'+(a*0.18)+')');
+    cg.addColorStop(1,'rgba(160,222,255,'+(a*0.52)+')');
+    ctx.fillStyle = cg; ctx.fillRect(0,0,W,H);
+
+    // 四边结霜
+    const frost = ctx.createLinearGradient(0,0,0,H*0.3);
+    frost.addColorStop(0,'rgba(214,240,255,'+(a*0.34)+')');
+    frost.addColorStop(1,'rgba(214,240,255,0)');
+    ctx.fillStyle = frost; ctx.fillRect(0,0,W,H*0.3);
+    const frost2 = ctx.createLinearGradient(0,H,0,H*0.72);
+    frost2.addColorStop(0,'rgba(214,240,255,'+(a*0.30)+')');
+    frost2.addColorStop(1,'rgba(214,240,255,0)');
+    ctx.fillStyle = frost2; ctx.fillRect(0,H*0.72,W,H*0.28);
+
+    ctx.strokeStyle = 'rgba(226,246,255,'+(a*0.34)+')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H);
+    ctx.lineTo(0, H); ctx.closePath(); ctx.stroke();
+
+    // 分两级：过半只是提醒，逼近冻僵才强硬警告，
+    // 免得刚过一半就红光闪闪，逼得人什么都不敢做
+    if (S.cold >= 50){
+      const heavy = S.cold >= 85;
+      if (heavy){
+        const pulse = 0.30 + 0.42*Math.abs(Math.sin(S.t*4.2));
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#8fd6ff';
+        ctx.lineWidth = 12;
+        ctx.beginPath(); ctx.rect(8,8,W-16,H-16); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      let msg, big;
+      if (S.cold >= 100){
+        // 条已经空了，这会儿是在烧自己的体温，直接给倒计时
+        const left = Math.max(0, S.health / COLD_HURT);
+        msg = '体 温 耗 尽 · ' + Math.ceil(left) + ' 秒内回屋';
+        big = true;
+      } else if (heavy){
+        msg = '体 温 过 低 · 快 回 屋'; big = true;
+      } else {
+        msg = '有点冷了 · 该回屋了'; big = false;
+      }
+      ctx.textAlign = 'center';
+      ctx.fillStyle = big
+        ? 'rgba(206,240,255,'+(0.55+0.45*Math.sin(S.t*5))+')'
+        : 'rgba(186,224,250,.60)';
+      ctx.font = '600 ' + Math.min(big ? 30 : 23, W*0.042) + 'px ' + FONT_S;
+      ctx.fillText(msg, W/2, H*0.145);
+      ctx.textAlign = 'left';
+    }
+    ctx.restore();
+  }
+
+  if (S.flash > 0.01){
+    ctx.fillStyle = 'rgba(255,240,220,'+clamp(S.flash*0.85,0,0.92)+')';
+    ctx.fillRect(0,0,W,H);
+  }
+
+  if (S.cine){
+    const k = S.cine.t / S.cine.dur;
+    const a = k<0.15 ? k/0.15 : (k>0.82 ? (1-k)/0.18 : 1);
+    ctx.save();
+    ctx.globalAlpha = clamp(a,0,1);
+    ctx.fillStyle = 'rgba(6,4,3,.72)';
+    ctx.fillRect(0, H*0.40, W, H*0.22);
+    ctx.textAlign='center';
+    ctx.fillStyle = '#ffd9a8';
+    ctx.font = '600 '+Math.min(44, W*0.062)+'px '+FONT_S;
+    ctx.fillText(S.cine.text, W/2, H*0.485);
+    ctx.fillStyle = 'rgba(226,206,180,.82)';
+    ctx.font = Math.min(16, W*0.032)+'px '+FONT_S;
+    ctx.fillText(S.cine.sub, W/2, H*0.545);
+    ctx.restore();
+  }
+
+  if (!S.cine && S.started && !S.over) drawHint();
+
+  if (S.over && !S.won){
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,8,16,.80)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    ctx.fillStyle = '#bcd8f0';
+    ctx.font = '600 '+Math.min(40,W*0.058)+'px '+FONT_S;
+    ctx.fillText('你被冻僵了', W/2, H*0.46);
+    ctx.fillStyle = 'rgba(180,200,220,.7)';
+    ctx.font = Math.min(15,W*0.03)+'px '+FONT_S;
+    ctx.fillText('雪落在了没有烧完的木料上 · 点击重新开始', W/2, H*0.53);
+    ctx.restore();
+  }
+}
+
+function drawHint(){
+  const p = S.player;
+  let txt = '';
+  if (S.scene==='outdoor'){
+    if (S.phase>=PH_BURN) txt = Math.abs(p.x-DOOR_X) < REACH_DOOR ? '进屋躲一下' : '';
+    else if (Math.abs(p.x-SHOP_X) < REACH_SHOP) txt = '收购站';
+    else if (Math.abs(p.x-DOOR_X) < REACH_DOOR) txt = '进屋';
+    else if (nearestTree()) txt = '砍树';
+  } else if (S.scene==='indoor'){
+    const dD = Math.abs(p.x-doorIndoorX()), dF = Math.abs(p.x-furnaceX());
+    if (dD < REACH_DOOR) txt = '出门';
+    else if (S.phase>=PH_BURN) txt = '壁炉塌了 · 去门口看火';
+    else if (dF < REACH_FIRE) txt = S.wood>0 ? '按住 E 连续投柴' : '没有木料了';
+  } else if (S.scene==='xian'){
+    txt = '添木料 · 加速升温';
+  }
+  showHint(txt);
+}
+
+/* ============================================================
+   13. HUD
+   ============================================================ */
+const el = {
+  tempVal:$('tempVal'), tempBar:$('tempBar'), outTemp:$('outTemp'),
+  stageName:$('stageName'), stageGoal:$('stageGoal'), stageBarFill:$('stageBarFill'),
+  woodVal:$('woodVal'), moneyVal:$('moneyVal'), staBar:$('staBar'), hpBar:$('hpBar'),
+  axeLv:$('axeLv'), bootLv:$('bootLv')
+};
+function updateHUD(){
+  el.tempVal.textContent = S.inTemp.toFixed(1);
+  const hue = lerp(198, 8, clamp((S.inTemp+20)/420,0,1));
+  el.tempVal.style.color = 'hsl('+hue+',88%,'+(62+clamp(S.inTemp/420,0,1)*16)+'%)';
+  el.tempBar.style.width = clamp((S.inTemp+20)/420*100, 2, 100)+'%';
+  el.tempBar.style.background = 'linear-gradient(90deg,#4aa8d8,hsl('+hue+',90%,58%))';
+
+  let zoneTag = '';
+  if (S.scene==='outdoor') zoneTag = ' · ' + zoneAt(S.player.x+60).name;
+  else if (S.scene==='indoor') zoneTag = ' · 屋内';
+  el.outTemp.textContent = '室外 ' + (S.outTemp>0?'+':'') + S.outTemp.toFixed(1) + '°C' + zoneTag;
+
+  const st = STAGES[S.phase];
+  el.stageName.textContent = st.name;
+  el.stageGoal.textContent = st.goal;
+  let pr = 0;
+  if (S.phase===1) pr = (S.inTemp-2)/THRESH.warm;
+  else if (S.phase===2) pr = (S.inTemp-THRESH.warm)/(THRESH.smoke-THRESH.warm);
+  else if (S.phase===3) pr = (S.inTemp-THRESH.smoke)/(THRESH.burn-THRESH.smoke);
+  else if (S.phase===4) pr = S.forestFire;
+  else pr = (S.xianTemp-15)/(THRESH.xian-15);
+  el.stageBarFill.style.width = clamp(pr*100, 0, 100)+'%';
+
+  el.woodVal.textContent = S.wood;
+  el.moneyVal.textContent = S.money;
+  el.staBar.style.width = clamp(S.stamina/STAMINA_MAX*100,0,100)+'%';
+  el.staBar.style.background = S.stamina<40
+    ? 'linear-gradient(90deg,#ff8a6a,#ffcf8a)'
+    : 'linear-gradient(90deg,#7fd6a0,#c9f0b8)';
+  // 「体温」条直接反映寒冷度：满条=正常，半条=开始告警，见底=要掉体温了。
+  // 之前这条读的是生命值，而告警读的是寒冷值，两者错位，才会出现
+  // 「条还是满的却提示体温过低」。
+  const warm = clamp(100 - S.cold, 0, 100);
+  el.hpBar.style.width = warm + '%';
+  el.hpBar.style.background = warm > 60
+    ? 'linear-gradient(90deg,#ff7a5c,#ffd08a)'
+    : (warm > 25 ? 'linear-gradient(90deg,#9fd0ff,#ffd08a)'
+                 : 'linear-gradient(90deg,#5fa8ff,#bcdcff)');
+  el.axeLv.textContent = '斧 Lv.' + S.axe;
+  el.bootLv.textContent = '靴 Lv.' + S.boot;
+}
+
+/* ============================================================
+   14. 结局
+   ============================================================ */
+function triggerWin(){
+  if (S.won) return;
+  S.won = true; S.over = true;
+  closeShop();
+  sfx('win');
+  const card = $('card');
+  card.innerHTML =
+    '<div class="final">'+S.xianTemp.toFixed(1)+'<i>°C</i></div>'+
+    '<div class="subtitle" style="margin-top:14px">西安市 实时气温</div>'+
+    '<div class="rule" style="text-align:center;margin-top:26px;color:#a99a86;font-size:12.5px;line-height:2">'+
+      '总伐木 '+S.chopped+' 根 · 投进壁炉 '+S.totalWood+' 根<br>'+
+      '木屋最高 '+Math.round(Math.max(S.inTemp,THRESH.burn))+'°C<br>'+
+      '斧头 Lv.'+S.axe+' · 靴子 Lv.'+S.boot+' · 结余 '+S.money+' 元'+
+    '</div>'+
+    '<button id="btnAgain">再 来 一 次</button>';
+  $('overlay').classList.remove('hide');
+  $('btnAgain').addEventListener('click', ()=>{ location.reload(); });
+}
+cv.addEventListener('pointerdown', ()=>{
+  if (S.over && !S.won) location.reload();
+});
+
+/* ============================================================
+   15. 启动
+   ============================================================ */
+resize();
+buildSprites();
+buildWorld();
+S.player.x = VILLAGE_X;
+
+$('btnStart').addEventListener('click', ()=>{
+  initAudio();
+  if (AC && AC.state==='suspended') AC.resume();
+  $('overlay').classList.add('hide');
+  S.started = true;
+  toast('右边是林子，左边是收购站', 3.6);
+});
+
+let last = performance.now();
+let frameErrors = 0;
+function loop(now){
+  const dt = Math.min(0.05, Math.max(0.0005, (now-last)/1000));
+  last = now;
+  // 单帧异常绝不能中断 rAF 链：一旦断掉，画面就永久冻结/黑屏，只能刷新
+  try {
+    if (S.started && !S.over && !S.paused) update(dt);
+    else { stepParts(dt); S.t += dt;
+           S.shake=Math.max(0,S.shake-dt*46); S.flash=Math.max(0,S.flash-dt*1.9);
+           updateCamera(dt); }
+    render(dt);
+    updateHUD();
+  } catch (e) {
+    frameErrors++;
+    if (frameErrors <= 3 && window.console) console.warn('[焚城] 帧异常已跳过', e);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+<!--客服 开始-->
+<script src="//g8hh.github.io/static/js/jquery.min.js"></script>
+<link rel="stylesheet" href="//g8hh.github.io/static/css/kf.css" type="text/css" media="screen" charset="utf-8">
+<script src="//g8hh.github.io/static/js/kf.js"></script>
+<!-- 客服 结束 -->
+<!--站长统计-->
+   <div style="display: none">
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?ec5f26b84bd0967de22ac0e5a0c177e1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+    </div>
+</body>
+</html>
